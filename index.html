@@ -1,0 +1,1774 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MugLab</title>
+<style>
+  :root {
+    --bg:#eef0f3; --panel:#fff; --soft:#f6f7f9; --ink:#1f2937; --muted:#6b7280; --line:#dfe3e8;
+    --accent:#2563eb; --accent-weak:#e8f0fe; --orange:#f5a50b; --danger:#dc2626;
+    --r:7px; --h:32px; --sideW:clamp(320px, 26vw, 400px);
+  }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; font:13px/1.4 system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); overflow:hidden; }
+  h2 { font-size:12px; margin:0; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+  svg.ic { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  svg.ic.sm { width:16px; height:16px; }
+  [hidden] { display:none !important; }
+
+  /* ---- osnovne kontrole ---- */
+  button, .btn { font:inherit; height:var(--h); padding:0 12px; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:var(--r); cursor:pointer; white-space:nowrap; }
+  button:hover, .btn:hover { border-color:var(--accent); color:var(--accent); }
+  button:disabled { opacity:.4; cursor:default; border-color:var(--line); color:var(--ink); }
+  .btn.primary, button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.primary:hover, button.primary:hover { background:#1d4fd8; color:#fff; }
+  button.icon { width:var(--h); padding:0; }
+  button.mini { height:24px; width:24px; padding:0; border:0; background:transparent; color:var(--muted); }
+  button.mini:hover { color:var(--accent); background:var(--accent-weak); }
+  button.danger:hover { border-color:var(--danger); color:var(--danger); }
+  input[type=file] { display:none; }
+  input[type=number], input[type=text], select, textarea { font:inherit; height:var(--h); padding:0 8px; border:1px solid var(--line); border-radius:var(--r); background:#fff; color:var(--ink); min-width:0; width:100%; }
+  textarea { height:auto; min-height:60px; padding:6px 8px; resize:vertical; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--accent-weak); border-color:var(--accent); }
+  input[type=color] { width:36px; height:var(--h); padding:2px; border:1px solid var(--line); border-radius:var(--r); background:#fff; cursor:pointer; flex:none; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  input[type=checkbox] { accent-color:var(--accent); width:15px; height:15px; margin:0; }
+  label.chk { display:flex; align-items:center; gap:8px; color:var(--ink); cursor:pointer; }
+  .seg { display:inline-flex; }
+  .seg button { border-radius:0; margin-left:-1px; }
+  .seg button:first-child { border-radius:var(--r) 0 0 var(--r); margin-left:0; }
+  .seg button:last-child { border-radius:0 var(--r) var(--r) 0; }
+  .seg button.on { background:var(--accent-weak); border-color:var(--accent); color:var(--accent); position:relative; }
+
+  /* ---- raspored aplikacije ---- */
+  #app { display:grid; height:100vh; grid-template-columns:64px minmax(0,1fr) var(--sideW); grid-template-rows:56px minmax(0,1fr) 28px;
+         grid-template-areas:"top top top" "tools stage side" "status status status"; }
+  #app.noSide { grid-template-columns:64px minmax(0,1fr) 0; }
+  #app.noSide #side { display:none; }
+
+  /* gornja traka */
+  #topbar { grid-area:top; display:flex; align-items:center; gap:8px; padding:0 14px; background:var(--panel); border-bottom:1px solid var(--line); min-width:0; }
+  #logoSmall { height:40px; display:block; cursor:pointer; background:#fff; border-radius:8px; }
+  .proj { display:flex; align-items:center; gap:8px; margin-left:12px; min-width:0; }
+  #projName { width:clamp(120px, 22vw, 320px); border-color:transparent; background:transparent; font-weight:600; font-size:14px; }
+  #projName:hover { border-color:var(--line); background:#fff; }
+  #dirtyDot { width:9px; height:9px; border-radius:50%; background:var(--orange); flex:none; visibility:hidden; }
+  #dirtyDot.on { visibility:visible; }
+  .spacer { flex:1; }
+  .sep { width:1px; height:24px; background:var(--line); margin:0 4px; }
+  #topbar .tb { height:36px; border-color:transparent; background:transparent; }
+  #topbar .tb:hover { background:var(--accent-weak); border-color:transparent; }
+  #topbar .tb:disabled:hover { background:transparent; color:var(--ink); }
+  #topbar .btn.primary { height:36px; padding:0 16px; font-weight:600; }
+
+  /* lijeva alatna traka */
+  #tools { grid-area:tools; background:var(--panel); border-right:1px solid var(--line); display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 0; position:relative; z-index:5; }
+  .tool { width:52px; height:54px; flex-direction:column; gap:3px; padding:4px 0; border-color:transparent; background:transparent; font-size:10.5px; color:var(--muted); }
+  .tool:hover { background:var(--accent-weak); border-color:transparent; }
+  .tool.active { background:var(--accent-weak); color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); }
+  #shapeMenu { position:absolute; left:62px; top:140px; background:#fff; border:1px solid var(--line); border-radius:var(--r); box-shadow:0 8px 24px rgba(17,24,39,.15); padding:6px; display:flex; flex-direction:column; min-width:180px; z-index:30; }
+  #shapeMenu button { justify-content:flex-start; border-color:transparent; width:100%; }
+  #shapeMenu button:hover { background:var(--accent-weak); }
+
+  /* središnji dio */
+  #stage { grid-area:stage; display:flex; flex-direction:column; min-width:0; min-height:0; }
+  #editorWrap { flex:1; min-height:0; overflow:auto; display:flex; background:#dde1e6; padding:20px; position:relative; }
+  #editor { margin:auto; flex:none; display:block; touch-action:none; cursor:grab; box-shadow:0 2px 14px rgba(17,24,39,.18); background:#fff; }
+  #zoomBar { flex:none; height:40px; display:flex; align-items:center; justify-content:center; gap:6px; background:var(--panel); border-top:1px solid var(--line); }
+  #zoomVal { min-width:52px; text-align:center; color:var(--ink); font-variant-numeric:tabular-nums; }
+  #zoomBar .hint { position:absolute; right:calc(var(--sideW) + 16px); }
+
+  /* desni panel */
+  #side { grid-area:side; display:flex; flex-direction:column; min-height:0; background:var(--panel); border-left:1px solid var(--line); overflow:hidden; }
+  .phead { display:flex; align-items:center; gap:6px; padding:8px 12px; min-height:40px; border-bottom:1px solid var(--line); }
+  .phead h2 { margin-right:auto; }
+  #view3d { flex:none; height:clamp(230px, 36vh, 420px); display:flex; flex-direction:column; border-bottom:1px solid var(--line); }
+  #view { flex:1; min-height:0; background:#dde2e8; overflow:hidden; }
+  #view canvas { display:block; width:100%; height:100%; }
+  .views button { height:26px; padding:0 8px; font-size:12px; }
+  #layersPanel { flex:none; border-bottom:1px solid var(--line); }
+  #layersPanel .phead { cursor:pointer; border-bottom:0; }
+  #layersPanel.open .phead { border-bottom:1px solid var(--line); }
+  #layersPanel .chev { transition:transform .15s; }
+  #layersPanel.open .chev { transform:rotate(90deg); }
+  #layerList { list-style:none; margin:0; padding:4px; max-height:clamp(90px, 20vh, 200px); overflow:auto; display:none; }
+  #layersPanel.open #layerList { display:block; }
+  #layerList li { display:flex; align-items:center; gap:8px; height:32px; padding:0 4px 0 8px; border-radius:6px; cursor:pointer; color:var(--ink); }
+  #layerList li:hover { background:var(--soft); }
+  #layerList li.sel { background:var(--accent-weak); box-shadow:inset 3px 0 0 var(--accent); }
+  #layerList li.hid .nm { opacity:.45; text-decoration:line-through; }
+  #layerList li .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #layerList li.empty { color:var(--muted); cursor:default; justify-content:center; }
+  #layerList li .mini.on { color:var(--accent); }
+  #props { flex:1 1 auto; min-height:120px; overflow:auto; padding:0 0 12px; }
+  .psec { padding:10px 12px; border-bottom:1px solid var(--line); }
+  .psec > h3 { margin:0 0 8px; font-size:12px; color:var(--muted); font-weight:600; }
+  .g2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .fld { display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .fld > span { font-size:11px; color:var(--muted); }
+  .rowf { display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .rowf > .grow { flex:1; min-width:90px; }
+  .objHead { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); }
+  .objHead b { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .info { color:var(--muted); }
+  .info dl { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:0; }
+  .info dt { color:var(--muted); } .info dd { margin:0; color:var(--ink); }
+  .hint { color:var(--muted); font-size:12px; }
+
+  /* statusna traka */
+  #statusbar { grid-area:status; display:flex; align-items:center; gap:18px; padding:0 14px; background:var(--panel); border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+  #statusbar button { height:22px; padding:0 8px; font-size:12px; }
+  #stSaved.dirty { color:#b45309; }
+
+  /* dijalog izvoza */
+  dialog { border:1px solid var(--line); border-radius:12px; padding:0; width:min(820px, 94vw); max-height:92vh; box-shadow:0 20px 60px rgba(17,24,39,.3); color:var(--ink); }
+  dialog::backdrop { background:rgba(17,24,39,.4); }
+  dialog[open] { display:flex; flex-direction:column; }
+  .dlgHead { display:flex; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); }
+  .dlgHead h2 { font-size:15px; color:var(--ink); text-transform:none; letter-spacing:0; margin-right:auto; }
+  .dlgBody { padding:16px; overflow:auto; display:grid; grid-template-columns:minmax(0,1fr) 260px; gap:16px; }
+  @media (max-width:720px) { .dlgBody { grid-template-columns:1fr; } }
+  .dlgBody fieldset { border:1px solid var(--line); border-radius:var(--r); margin:0 0 12px; padding:8px 12px 12px; display:flex; flex-direction:column; gap:10px; }
+  .dlgBody legend { font-weight:600; padding:0 6px; color:var(--ink); }
+  .dlgBody label.f { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .dlgBody label.f > :last-child { width:150px; flex:none; }
+  .dlgBody label.f.dis { opacity:.45; }
+  #expPrevWrap { background:var(--soft); border:1px solid var(--line); border-radius:var(--r); padding:10px; text-align:center; align-self:start; }
+  #expPrev { width:100%; max-width:240px; background:#fff; box-shadow:0 1px 6px rgba(17,24,39,.2); }
+  #expPrevInfo { margin-top:8px; color:var(--muted); font-size:12px; }
+  .dlgFoot { display:flex; align-items:center; gap:10px; padding:12px 16px; border-top:1px solid var(--line); background:var(--soft); border-radius:0 0 12px 12px; }
+  .dlgFoot b { white-space:nowrap; }
+  #expInfo { flex:1; color:var(--muted); font-size:12px; min-height:18px; }
+
+  /* uvodni ekran */
+  #splash { position:fixed; inset:0; z-index:100; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; background:#fff; color:#1f2937; transition:opacity .6s ease; cursor:pointer; padding:16px; }
+  #splash.hide { opacity:0; pointer-events:none; }
+  #splash .mug { max-height:52vh; max-width:90vw; object-fit:contain; }
+  #splash .logo { max-height:20vh; max-width:min(520px,90vw); object-fit:contain; }
+  #splash button { font-size:18px; height:auto; padding:10px 34px; border-radius:999px; background:#2563eb; border-color:#2563eb; color:#fff; }
+  #splash .bar { width:min(320px,70vw); height:4px; background:#e5e7eb; border-radius:2px; overflow:hidden; }
+  #splash .bar i { display:block; height:100%; width:0; background:#f5a50b; }
+  #splash .bar i.run { width:100%; transition:width 5s linear; }
+  #dropHint { display:none; position:fixed; inset:0; z-index:90; align-items:center; justify-content:center; font-size:24px; background:rgba(37,99,235,.2); border:4px dashed var(--accent); color:var(--ink); pointer-events:none; }
+
+  @media (max-width: 1100px) { :root { --sideW:300px; } #topbar .tb span { display:none; } #zoomBar .hint { display:none; } }
+</style>
+</head>
+<body>
+<div id="splash" title="Klikni za ulaz">
+  <img class="mug" src="muglab-salica.webp" alt="MugLab – šalica">
+  <img class="logo" src="muglab-logo.webp" alt="MugLab">
+  <button id="splashGo">Kreni ▶</button>
+  <div class="bar"><i id="splashBar"></i></div>
+</div>
+<div id="dropHint">Ispusti slike ili projekt (.json) ovdje</div>
+
+<div id="app">
+  <!-- A. gornja traka -->
+  <header id="topbar">
+    <img id="logoSmall" src="muglab-logo.webp" alt="MugLab" title="MugLab – klikni za uvodni ekran">
+    <div class="proj">
+      <input id="projName" type="text" value="Neimenovani projekt" spellcheck="false" title="Naziv projekta">
+      <span id="dirtyDot" title="Nespremljene promjene"></span>
+    </div>
+    <div class="spacer"></div>
+    <button class="tb btn" id="newProj" title="Novi projekt"><i data-i="new"></i><span>Novi</span></button>
+    <label class="tb btn" title="Otvori projekt (Ctrl+O)"><i data-i="open"></i><span>Otvori</span><input id="openProj" type="file" accept=".json,application/json"></label>
+    <button class="tb btn" id="saveProj" title="Spremi projekt (Ctrl+S)"><i data-i="save"></i><span>Spremi</span></button>
+    <div class="sep"></div>
+    <button class="tb btn icon" id="undoBtn" title="Poništi (Ctrl+Z)" disabled><i data-i="undo"></i></button>
+    <button class="tb btn icon" id="redoBtn" title="Ponovi (Ctrl+Y)" disabled><i data-i="redo"></i></button>
+    <div class="sep"></div>
+    <button class="btn primary" id="openExport" title="Priprema za sublimacijski tisak"><i data-i="export"></i>Izvezi za tisak</button>
+  </header>
+
+  <!-- B. lijeva alatna traka -->
+  <nav id="tools">
+    <button class="tool active" id="toolSelect" title="Odabir / pomicanje (V)"><i data-i="select"></i>Odabir</button>
+    <label class="btn tool" id="toolImage" title="Dodaj sliku"><i data-i="image"></i>Slika<input id="file" type="file" accept="image/*" multiple></label>
+    <button class="tool" id="addText" title="Dodaj tekst (T)"><i data-i="text"></i>Tekst</button>
+    <button class="tool" id="toolShapes" title="Oblici"><i data-i="shapes"></i>Oblici</button>
+    <button class="tool" id="toolLayers" title="Slojevi (prikaži / sakrij panel)"><i data-i="layers"></i>Slojevi</button>
+    <div id="shapeMenu" hidden>
+      <button data-shape="rect"><i data-i="rect"></i>Pravokutnik</button>
+      <button data-shape="ellipse"><i data-i="circle"></i>Krug / elipsa</button>
+      <button data-shape="triangle"><i data-i="triangle"></i>Trokut</button>
+      <button data-shape="star"><i data-i="star"></i>Zvijezda</button>
+      <button data-shape="line"><i data-i="line"></i>Linija</button>
+    </div>
+  </nav>
+
+  <!-- C. središnji dio -->
+  <section id="stage">
+    <div id="editorWrap"><canvas id="editor"></canvas></div>
+    <div id="zoomBar">
+      <button class="icon" id="zoomOut" title="Smanji (Ctrl + kotačić)"><i data-i="minus"></i></button>
+      <span id="zoomVal">100%</span>
+      <button class="icon" id="zoomIn" title="Povećaj (Ctrl + kotačić)"><i data-i="plus"></i></button>
+      <button id="zoomFit" title="Prilagodi prostoru">Prilagodi</button>
+    </div>
+  </section>
+
+  <!-- D. desni panel -->
+  <aside id="side">
+    <section id="view3d">
+      <div class="phead">
+        <h2>3D pregled</h2>
+        <div class="seg views">
+          <button data-view="home" title="Početni pogled">Početni</button>
+          <button data-view="front" title="Pogled sprijeda">Sprijeda</button>
+          <button data-view="side" title="Pogled sa strane (ručka)">Bok</button>
+          <button data-view="top" title="Pogled odozgo">Odozgo</button>
+        </div>
+        <button class="icon" id="saveView" title="Spremi 3D prikaz (PNG)"><i data-i="camera"></i></button>
+      </div>
+      <div id="view"></div>
+    </section>
+
+    <section id="layersPanel" class="open">
+      <div class="phead" id="layersHead">
+        <h2>Slojevi <span id="layerCount" class="hint"></span></h2>
+        <i data-i="chev" class="chev"></i>
+      </div>
+      <ul id="layerList"></ul>
+    </section>
+
+    <section id="props">
+      <!-- ništa odabrano -->
+      <div id="propsEmpty">
+        <div class="psec info">
+          <h3>Projekt</h3>
+          <dl>
+            <dt>Naziv</dt><dd id="infName">–</dd>
+            <dt>Područje ispisa</dt><dd>200 × 85 mm</dd>
+            <dt>Šalica</dt><dd>klasična bijela, 11 oz</dd>
+            <dt>Objekata</dt><dd id="infCount">0</dd>
+          </dl>
+        </div>
+        <div class="psec hint">Dodaj sliku, tekst ili oblik iz lijeve trake, ili odaberi objekt na plaštu. Više objekata odabereš sa Shift + klik, a Ctrl + A odabire sve.</div>
+      </div>
+
+      <!-- jedan objekt -->
+      <div id="propsObj" hidden>
+        <div class="objHead"><span id="objIcon"></span><b id="objName">Objekt</b>
+          <button class="icon danger" data-act="delete" title="Obriši (Delete)"><i data-i="trash"></i></button></div>
+
+        <div class="psec">
+          <h3>Položaj i veličina</h3>
+          <div class="g2">
+            <label class="fld"><span>X (mm)</span><input id="pX" type="number" step="0.1"></label>
+            <label class="fld"><span>Y (mm)</span><input id="pY" type="number" step="0.1"></label>
+            <label class="fld"><span>Širina (mm)</span><input id="pW" type="number" step="0.1" min="0.5"></label>
+            <label class="fld"><span>Visina (mm)</span><input id="pH" type="number" step="0.1" min="0.5"></label>
+          </div>
+          <label class="chk rowf"><input id="pLock" type="checkbox" checked> Zadrži omjer stranica</label>
+          <div class="rowf">
+            <div class="fld grow"><span>Rotacija</span><input id="rot" type="range" min="-180" max="180" step="1" value="0"></div>
+            <input id="rotNum" type="number" step="1" value="0" style="width:68px" title="Točan kut u stupnjevima">
+          </div>
+          <div class="rowf">
+            <button id="rotL" class="icon" title="Zakreni 90° ulijevo"><i data-i="rotl"></i></button>
+            <button id="rotR" class="icon" title="Zakreni 90° udesno"><i data-i="rotr"></i></button>
+            <button id="rot0" title="Kut 0°">0°</button>
+            <button id="center" title="Centriraj na plašt"><i data-i="center" class="sm"></i>Centriraj</button>
+          </div>
+        </div>
+
+        <div class="psec" id="secImage" hidden>
+          <h3>Slika</h3>
+          <label class="chk"><input id="keyBg" type="checkbox"> Ukloni bijelu pozadinu</label>
+          <div class="rowf"><div class="fld grow"><span>Tolerancija</span><input id="keyTol" type="range" min="5" max="80" step="1" value="30"></div></div>
+          <div class="rowf">
+            <button id="cropBtn" title="Povuci crvene ručice na rubovima slike"><i data-i="crop" class="sm"></i>Obreži</button>
+            <button id="cropReset">Poništi obrezivanje</button>
+          </div>
+        </div>
+
+        <div class="psec" id="secText" hidden>
+          <h3>Tekst</h3>
+          <textarea id="txt" rows="2" placeholder="Upiši tekst"></textarea>
+          <div class="rowf">
+            <select id="fontSel" class="grow" title="Vrsta fonta">
+              <option value="Georgia, serif">Georgia</option>
+              <option value="Arial, Helvetica, sans-serif">Arial</option>
+              <option value="'Times New Roman', serif">Times New Roman</option>
+              <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+              <option value="Verdana, sans-serif">Verdana</option>
+              <option value="'Courier New', monospace">Courier New</option>
+              <option value="Impact, 'Arial Black', sans-serif">Impact</option>
+              <option value="'Segoe Script', 'Brush Script MT', cursive">Rukopisni</option>
+            </select>
+            <input id="fontSize" type="number" min="4" max="400" step="1" style="width:76px" title="Veličina fonta (pt)">
+          </div>
+          <div class="rowf">
+            <input id="col" type="color" title="Boja teksta">
+            <div class="seg" id="alignSeg">
+              <button data-align="left" title="Lijevo"><i data-i="al-l" class="sm"></i></button>
+              <button data-align="center" title="Sredina"><i data-i="al-c" class="sm"></i></button>
+              <button data-align="right" title="Desno"><i data-i="al-r" class="sm"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="psec" id="secShape" hidden>
+          <h3>Oblik</h3>
+          <div class="rowf" style="margin-top:0">
+            <label class="chk grow"><input id="shFillOn" type="checkbox" checked> Ispuna</label>
+            <input id="shFill" type="color" title="Boja ispune">
+          </div>
+          <div class="rowf">
+            <span class="grow">Obrub</span>
+            <input id="shStroke" type="color" title="Boja obruba">
+            <input id="shStrokeW" type="number" min="0" max="200" step="1" style="width:76px" title="Debljina obruba">
+          </div>
+        </div>
+
+        <div class="psec" id="secGroup" hidden>
+          <h3>Grupa</h3>
+          <button id="ungrp" title="Razdvoji grupu (Ctrl+Shift+G)"><i data-i="group" class="sm"></i>Razgrupiraj</button>
+        </div>
+
+        <div class="psec">
+          <h3>Redoslijed sloja</h3>
+          <div class="seg">
+            <button data-order="top" title="Na vrh">Na vrh</button>
+            <button data-order="up" title="Jedan gore">Gore</button>
+            <button data-order="down" title="Jedan dolje">Dolje</button>
+            <button data-order="bottom" title="Na dno">Na dno</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- više objekata -->
+      <div id="propsMulti" hidden>
+        <div class="objHead"><i data-i="layers"></i><b id="multiInfo">Odabrano: 2</b>
+          <button class="icon danger" data-act="delete" title="Obriši odabrane (Delete)"><i data-i="trash"></i></button></div>
+        <div class="psec">
+          <h3>Grupiranje</h3>
+          <button id="grp" title="Spoji odabrane objekte u cjelinu (Ctrl+G)"><i data-i="group" class="sm"></i>Grupiraj</button>
+          <div class="hint" style="margin-top:6px">Grupa se zajedno proporcionalno povećava, rotira i pomiče.</div>
+        </div>
+        <div class="psec">
+          <h3>Poravnaj</h3>
+          <div class="seg">
+            <button data-align-obj="left" title="Po lijevom rubu"><i data-i="a-left" class="sm"></i></button>
+            <button data-align-obj="hcenter" title="Po vodoravnoj sredini"><i data-i="a-hc" class="sm"></i></button>
+            <button data-align-obj="right" title="Po desnom rubu"><i data-i="a-right" class="sm"></i></button>
+          </div>
+          <div class="seg" style="margin-left:8px">
+            <button data-align-obj="top" title="Po gornjem rubu"><i data-i="a-top" class="sm"></i></button>
+            <button data-align-obj="vcenter" title="Po okomitoj sredini"><i data-i="a-vc" class="sm"></i></button>
+            <button data-align-obj="bottom" title="Po donjem rubu"><i data-i="a-bottom" class="sm"></i></button>
+          </div>
+        </div>
+        <div class="psec">
+          <h3>Rasporedi (jednaki razmaci)</h3>
+          <div class="seg">
+            <button data-dist="h" title="Vodoravno"><i data-i="d-h" class="sm"></i>Vodoravno</button>
+            <button data-dist="v" title="Okomito"><i data-i="d-v" class="sm"></i>Okomito</button>
+          </div>
+        </div>
+        <div class="psec">
+          <h3>Redoslijed slojeva</h3>
+          <div class="seg">
+            <button data-order="top">Na vrh</button>
+            <button data-order="up">Gore</button>
+            <button data-order="down">Dolje</button>
+            <button data-order="bottom">Na dno</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- E. statusna traka -->
+  <footer id="statusbar">
+    <span>Dizajn: 200 × 85 mm</span>
+    <span id="stZoom">Zoom: 100%</span>
+    <span id="stCount">Objekata: 0</span>
+    <span id="stSaved">Spremljeno</span>
+    <span class="spacer"></span>
+    <button id="sideToggle" title="Sakrij / prikaži desni panel">Sakrij panel ▸</button>
+  </footer>
+</div>
+
+<!-- izvoz za tisak -->
+<dialog id="exportDlg">
+  <div class="dlgHead"><h2>Izvoz za tisak</h2><button class="icon" id="expClose" title="Zatvori"><i data-i="x"></i></button></div>
+  <div class="dlgBody">
+    <div>
+      <fieldset>
+        <legend>1. Format i kvaliteta</legend>
+        <label class="f">Što izvoziti
+          <select id="expWhat"><option value="piece">Samo izrezani dizajn</option><option value="sheet" selected>A4 list s ponovljenim dizajnom</option></select></label>
+        <label class="f">Format datoteke
+          <select id="expFmt"><option value="pdf" selected>PDF</option><option value="png">PNG</option></select></label>
+        <label class="f">Rezolucija
+          <select id="dpi"><option value="300" selected>300 dpi</option><option value="600">600 dpi</option><option value="150">150 dpi</option></select></label>
+      </fieldset>
+      <fieldset>
+        <legend>2. Raspored na papiru</legend>
+        <label class="f">Margina oko dizajna (mm) <input id="margin" type="number" min="0" step="0.5" value="2"></label>
+        <label class="f sheetOnly">Razmak između primjeraka (mm) <input id="gap" type="number" min="0" step="0.5" value="0"></label>
+        <label class="f sheetOnly">Rub papira (mm) <input id="edge" type="number" min="0" step="0.5" value="5"></label>
+        <label class="f sheetOnly">Broj primjeraka <input id="copies" type="number" min="1" step="1" placeholder="najviše"></label>
+      </fieldset>
+      <fieldset>
+        <legend>3. Oznake za rezanje</legend>
+        <label class="chk sheetOnly"><input id="cutLines" type="checkbox" checked> Svijetlosive linije za rezanje (A4)</label>
+      </fieldset>
+    </div>
+    <div id="expPrevWrap">
+      <canvas id="expPrev" width="240" height="340"></canvas>
+      <div id="expPrevInfo">Pregled rasporeda</div>
+    </div>
+  </div>
+  <div class="dlgFoot">
+    <b>4. Spremanje</b>
+    <span id="expInfo"></span>
+    <button id="expCancel">Zatvori</button>
+    <button id="savePrint" class="primary"><i data-i="save" class="sm"></i>Spremi datoteku</button>
+  </div>
+</dialog>
+
+<script>
+// uvodni ekran: 5 sekundi ili klik / tipka za ulaz; klik na mali logo ga ponovno prikaže
+(() => {
+  const splash = document.getElementById('splash'), bar = document.getElementById('splashBar');
+  let timer = null;
+  const close = () => { clearTimeout(timer); splash.classList.add('hide'); bar.classList.remove('run'); };
+  const open = () => {
+    splash.classList.remove('hide');
+    bar.classList.remove('run'); void bar.offsetWidth; bar.classList.add('run');
+    clearTimeout(timer); timer = setTimeout(close, 5000);
+  };
+  splash.addEventListener('click', close);
+  window.addEventListener('keydown', e => { if (!splash.classList.contains('hide') && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) close(); });
+  document.getElementById('logoSmall').addEventListener('click', open);
+  open();
+})();
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ---------- Ikone (ujednačeni linijski SVG) ---------- */
+const ICONS = {
+  new: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
+  open: '<path d="M3 7h6l2 2h10v10H3z"/>',
+  save: '<path d="M5 3h12l4 4v14H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/>',
+  export: '<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/>',
+  redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/>',
+  select: '<path d="M5 3l14 8-6 2-2 6z"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/>',
+  text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+  shapes: '<rect x="4" y="4" width="9" height="9" rx="1"/><circle cx="15" cy="15" r="5"/>',
+  layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+  rect: '<rect x="4" y="6" width="16" height="12" rx="1.5"/>',
+  circle: '<circle cx="12" cy="12" r="8"/>',
+  triangle: '<path d="M12 5l8 14H4z"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  line: '<path d="M5 19L19 5"/>',
+  group: '<rect x="3" y="3" width="9" height="9" rx="1"/><rect x="12" y="12" width="9" height="9" rx="1"/>',
+  minus: '<path d="M5 12h14"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="14" r="3.5"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
+  unlock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 017.5-2"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  crop: '<path d="M6 2v14a2 2 0 002 2h14M2 6h14a2 2 0 012 2v14"/>',
+  center: '<circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>',
+  rotl: '<path d="M3 4v6h6"/><path d="M4.5 15A8 8 0 1 0 6 6L3 10"/>',
+  rotr: '<g transform="matrix(-1 0 0 1 24 0)"><path d="M3 4v6h6"/><path d="M4.5 15A8 8 0 1 0 6 6L3 10"/></g>',
+  'al-l': '<path d="M4 6h16M4 12h10M4 18h13"/>',
+  'al-c': '<path d="M4 6h16M7 12h10M5.5 18h13"/>',
+  'al-r': '<path d="M4 6h16M10 12h10M7 18h13"/>',
+  'a-left': '<path d="M4 3v18M8 7h12M8 14h7"/>',
+  'a-hc': '<path d="M12 3v18M5 7h14M8 14h8"/>',
+  'a-right': '<path d="M20 3v18M4 7h12M9 14h7"/>',
+  'a-top': '<path d="M3 4h18M7 8v12M14 8v8"/>',
+  'a-vc': '<path d="M3 12h18M7 5v14M14 8v8"/>',
+  'a-bottom': '<path d="M3 20h18M7 4v12M14 8v8"/>',
+  'd-h': '<path d="M4 3v18M20 3v18M10 8h4v8h-4z"/>',
+  'd-v': '<path d="M3 4h18M3 20h18M8 10v4h8v-4z"/>'
+};
+const ico = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+document.querySelectorAll('i[data-i]').forEach(el => { el.outerHTML = ico(el.dataset.i, [...el.classList].join(' ')); });
+const $ = id => document.getElementById(id);
+
+/* ---------- Mjere (mm) i skala: 10 px = 1 mm ---------- */
+const PX = 10;
+const MUG_H = 95, R_TOP = 41, R_BOT = 37;
+const CIRC = Math.round(2 * Math.PI * ((R_TOP + R_BOT) / 2));   // opseg ~ 245 mm
+const W = CIRC * PX, H = MUG_H * PX;
+const PRINT_W = 200 * PX, PRINT_H = 85 * PX;
+const PX0 = (W - PRINT_W) / 2, PY0 = (H - PRINT_H) / 2;
+
+/* ---------- Slojevi i 2D uređivač ---------- */
+const layers = [];
+let sel = null;
+let cropMode = false;
+const extra = new Set();      // dodatno odabrani slojevi (uz glavni odabir `sel`)
+
+/* ---------- Poništi / Ponovi: povijest stanja slojeva (slike se samo referenciraju) ---------- */
+const hist = [];
+let hi = -1, uidN = 0;
+const sigOf = () => JSON.stringify(layers, (k, v) => (k === 'img' || k === 'src' || k[0] === '_') ? undefined : v);
+
+function snapshot() {
+  layers.forEach(L => { if (!L.uid) L.uid = ++uidN; });
+  return { sig: sigOf(), sel: layers.indexOf(sel), layers: layers.map(L => ({ ...L, crop: L.crop && { ...L.crop } })) };
+}
+
+let savedSig = null;                       // potpis zadnjeg spremljenog stanja
+const isDirty = () => savedSig !== null && hi >= 0 && hist[hi].sig !== savedSig;
+function updateStatus() {
+  const d = isDirty();
+  document.getElementById('dirtyDot').classList.toggle('on', d);
+  const st = document.getElementById('stSaved');
+  st.textContent = d ? 'Nespremljene promjene' : 'Spremljeno';
+  st.classList.toggle('dirty', d);
+}
+
+function updateHistBtns() {
+  document.getElementById('undoBtn').disabled = hi <= 0;
+  document.getElementById('redoBtn').disabled = hi >= hist.length - 1;
+  updateStatus();
+}
+
+function commit() {
+  const s = snapshot();
+  if (hi >= 0 && hist[hi].sig === s.sig) return;
+  hist.splice(hi + 1);
+  hist.push(s);
+  if (hist.length > 100) hist.shift();
+  hi = hist.length - 1;
+  updateHistBtns();
+}
+
+function undo() { commit(); restore(hi - 1); }   // commit() prvo zabilježi eventualnu nespremljenu promjenu
+function redo() { restore(hi + 1); }
+function restore(i) {
+  if (i < 0 || i >= hist.length) return;
+  hi = i;
+  const s = hist[i];
+  layers.length = 0;
+  s.layers.forEach(L => layers.push({ ...L, crop: L.crop && { ...L.crop } }));
+  select(layers[s.sel] || null);
+  updateHistBtns();
+}
+
+const wrap = document.createElement('canvas');    // čista tekstura za šalicu
+wrap.width = W; wrap.height = H;
+const wctx = wrap.getContext('2d');
+
+const editor = document.getElementById('editor');
+editor.width = W; editor.height = H;
+const ectx = editor.getContext('2d');
+
+// uklanja gotovo bijelu pozadinu povezanu s rubom slike (bijeli dijelovi unutar dizajna ostaju)
+function keyedImage(L) {
+  if (L._key && L._keyTol === L.keyTol) return L._key;
+  const w = L.img.naturalWidth || L.img.width, h = L.img.naturalHeight || L.img.height;
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const x = cv.getContext('2d', { willReadFrequently: true });
+  x.drawImage(L.img, 0, 0);
+  const im = x.getImageData(0, 0, w, h), d = im.data;
+  const tol = L.keyTol, lim = 255 - tol;
+  const minCh = i => Math.min(d[i], d[i + 1], d[i + 2]);
+  const gone = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
+  let sp = 0;
+  const push = p => { if (!gone[p] && d[p * 4 + 3] > 0 && minCh(p * 4) >= lim) { gone[p] = 1; stack[sp++] = p; } };
+  for (let i = 0; i < w; i++) { push(i); push((h - 1) * w + i); }
+  for (let j = 0; j < h; j++) { push(j * w); push(j * w + w - 1); }
+  while (sp) {
+    const p = stack[--sp], px = p % w;
+    if (px > 0) push(p - 1);
+    if (px < w - 1) push(p + 1);
+    if (p >= w) push(p - w);
+    if (p < w * (h - 1)) push(p + w);
+  }
+  for (let p = 0; p < w * h; p++) {
+    if (gone[p]) { d[p * 4 + 3] = 0; continue; }
+    // rub uz uklonjeno područje: omekšaj sivkaste ostatke
+    const px = p % w;
+    const near = (px > 0 && gone[p - 1]) || (px < w - 1 && gone[p + 1]) || (p >= w && gone[p - w]) || (p < w * (h - 1) && gone[p + w]);
+    if (near) {
+      const t = Math.min(1, Math.max(0, (255 - minCh(p * 4)) / (tol * 2)));
+      d[p * 4 + 3] = Math.round(d[p * 4 + 3] * t);
+    }
+  }
+  x.putImageData(im, 0, 0);
+  L._key = cv; L._keyTol = L.keyTol;
+  return cv;
+}
+
+function drawLayer(c, L) {
+  if (L.hidden) return;
+  c.save();
+  c.translate(L.x, L.y);
+  c.rotate(L.rot * Math.PI / 180);
+  c.scale(L.s, L.s);
+  if (L.type === 'image') {
+    const cr = L.crop;
+    c.drawImage(L.keyBg ? keyedImage(L) : L.img,
+      cr.l * L.iw, cr.t * L.ih, (1 - cr.l - cr.r) * L.iw, (1 - cr.t - cr.b) * L.ih,
+      -L.bw / 2, -L.bh / 2, L.bw, L.bh);
+  } else if (L.type === 'group') {
+    L.children.forEach(ch => drawLayer(c, ch));      // djeca su zadana relativno prema središtu grupe
+  } else if (L.type === 'shape') {
+    const hw = L.bw / 2, hh = L.bh / 2;
+    c.beginPath();
+    if (L.kind === 'rect') c.rect(-hw, -hh, L.bw, L.bh);
+    else if (L.kind === 'ellipse') c.ellipse(0, 0, hw, hh, 0, 0, Math.PI * 2);
+    else if (L.kind === 'triangle') { c.moveTo(0, -hh); c.lineTo(hw, hh); c.lineTo(-hw, hh); c.closePath(); }
+    else if (L.kind === 'star') {
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 ? 0.4 : 1, a = -Math.PI / 2 + i * Math.PI / 5;
+        c[i ? 'lineTo' : 'moveTo'](Math.cos(a) * hw * r, Math.sin(a) * hh * r);
+      }
+      c.closePath();
+    } else { c.moveTo(-hw, 0); c.lineTo(hw, 0); }   // linija
+    c.lineJoin = 'round'; c.lineCap = 'round';
+    if (L.fillOn && L.kind !== 'line') { c.fillStyle = L.fill; c.fill(); }
+    if (L.sw > 0) { c.lineWidth = L.sw; c.strokeStyle = L.stroke; c.stroke(); }
+  } else {
+    c.font = `bold 120px ${L.font}`;
+    c.fillStyle = L.color;
+    c.textBaseline = 'middle';
+    const lines = L.text.split('\n'), al = L.align || 'center';
+    c.textAlign = al;
+    const x = al === 'left' ? -L.bw / 2 : al === 'right' ? L.bw / 2 : 0;
+    lines.forEach((ln, i) => c.fillText(ln, x, (i - (lines.length - 1) / 2) * TEXT_LINE));
+  }
+  c.restore();
+}
+
+const TEXT_LINE = 140;      // visina jednog retka teksta (u jedinicama sloja)
+function measureText(L) {
+  wctx.font = `bold 120px ${L.font}`;
+  const lines = L.text.split('\n');
+  L.bw = Math.max(20, ...lines.map(l => wctx.measureText(l).width));
+  L.bh = TEXT_LINE * lines.length;
+}
+
+function render() {
+  wctx.fillStyle = '#fff';
+  wctx.fillRect(0, 0, W, H);
+  wctx.save();
+  wctx.beginPath();
+  wctx.rect(PX0, PY0, PRINT_W, PRINT_H);
+  wctx.clip();
+  layers.forEach(L => drawLayer(wctx, L));
+  wctx.restore();
+  tex.needsUpdate = true;
+
+  ectx.drawImage(wrap, 0, 0);
+  ectx.save();
+  ectx.fillStyle = '#e6e9ed';                 // neutralna svijetlosiva podloga izvan područja ispisa
+  ectx.fillRect(0, 0, PX0, H); ectx.fillRect(PX0 + PRINT_W, 0, PX0, H);
+  ectx.fillRect(PX0, 0, PRINT_W, PY0); ectx.fillRect(PX0, PY0 + PRINT_H, PRINT_W, PY0);
+  ectx.setLineDash([24, 14]); ectx.lineWidth = 3; ectx.strokeStyle = '#2563eb';
+  ectx.strokeRect(PX0, PY0, PRINT_W, PRINT_H);
+  // vodilice: trećine i sredina područja ispisa
+  ectx.strokeStyle = 'rgba(100,100,100,.5)'; ectx.lineWidth = 2;
+  [1 / 3, 2 / 3].forEach(f => { ectx.beginPath(); ectx.moveTo(PX0 + PRINT_W * f, PY0); ectx.lineTo(PX0 + PRINT_W * f, PY0 + PRINT_H); ectx.stroke(); });
+  ectx.strokeStyle = 'rgba(37,99,235,.45)';
+  ectx.beginPath(); ectx.moveTo(W / 2, PY0); ectx.lineTo(W / 2, PY0 + PRINT_H); ectx.stroke();
+  // oznaka ručke na oba ruba plašta (ručka je na šavu)
+  ectx.setLineDash([]); ectx.strokeStyle = 'rgba(100,100,100,.6)'; ectx.lineWidth = 14;
+  // ručka viri prema rubu plašta ("(" lijevo, ")" desno), otvorena prema dizajnu
+  ectx.beginPath(); ectx.arc(170, H / 2, 170, Math.PI / 2, Math.PI * 1.5); ectx.stroke();
+  ectx.beginPath(); ectx.arc(W - 170, H / 2, 170, -Math.PI / 2, Math.PI / 2); ectx.stroke();
+  ectx.fillStyle = 'rgba(100,100,100,.8)'; ectx.font = '36px system-ui';
+  ectx.textAlign = 'left'; ectx.fillText('ručka', 60, H / 2 + 12);
+  ectx.textAlign = 'right'; ectx.fillText('ručka', W - 60, H / 2 + 12);
+  for (const L of extra) {                           // ostali slojevi u višestrukom odabiru
+    ectx.save();
+    ectx.translate(L.x, L.y); ectx.rotate(L.rot * Math.PI / 180);
+    ectx.setLineDash([]); ectx.strokeStyle = '#f59e0b'; ectx.lineWidth = 4;
+    ectx.strokeRect(-L.bw * L.s / 2, -L.bh * L.s / 2, L.bw * L.s, L.bh * L.s);
+    ectx.restore();
+  }
+  if (sel && !sel.hidden) {
+    ectx.translate(sel.x, sel.y);
+    ectx.rotate(sel.rot * Math.PI / 180);
+    ectx.setLineDash([]); ectx.strokeStyle = '#f59e0b'; ectx.lineWidth = 4;
+    const hw = sel.bw * sel.s / 2, hh = sel.bh * sel.s / 2;
+    if (cropMode && sel.type === 'image') {
+      // odrezani dio prikaži blijedo, a rubove za obrezivanje označi crvenim ručicama
+      const cr = sel.crop, fx = -hw - cr.l * sel.iw * sel.s, fy = -hh - cr.t * sel.ih * sel.s;
+      ectx.save();
+      ectx.beginPath(); ectx.rect(fx, fy, sel.iw * sel.s, sel.ih * sel.s); ectx.rect(-hw, -hh, hw * 2, hh * 2);
+      ectx.clip('evenodd');
+      ectx.globalAlpha = 0.35;
+      ectx.drawImage(sel.keyBg ? keyedImage(sel) : sel.img, fx, fy, sel.iw * sel.s, sel.ih * sel.s);
+      ectx.restore();
+      ectx.strokeStyle = '#ef4444'; ectx.lineWidth = 6;
+      ectx.strokeRect(-hw, -hh, hw * 2, hh * 2);
+      ectx.fillStyle = '#ef4444';
+      for (const sx of [-1, 0, 1]) for (const sy of [-1, 0, 1]) {
+        if (!sx && !sy) continue;
+        ectx.fillRect(sx * hw - HS / 2, sy * hh - HS / 2, HS, HS);
+      }
+    } else if (extra.size || sel.locked) {
+      ectx.strokeRect(-hw, -hh, hw * 2, hh * 2);     // višestruki odabir / zaključan sloj: samo okvir, bez ručica
+    } else {
+      ectx.strokeRect(-hw, -hh, hw * 2, hh * 2);
+      ectx.beginPath(); ectx.moveTo(0, -hh); ectx.lineTo(0, -hh - ROT_OFF); ectx.stroke();
+      ectx.fillStyle = '#fff'; ectx.lineWidth = 5;
+      for (const [cx, cy] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]]) {
+        ectx.fillRect(cx - HS / 2, cy - HS / 2, HS, HS); ectx.strokeRect(cx - HS / 2, cy - HS / 2, HS, HS);
+      }
+      ectx.beginPath(); ectx.arc(0, -hh - ROT_OFF, HS / 2, 0, Math.PI * 2); ectx.fill(); ectx.stroke();
+    }
+  }
+  ectx.restore();
+  syncProps();
+}
+
+function select(L, keepExtra = false) {
+  if (!keepExtra) extra.clear();
+  if (L !== sel || !L || L.type !== 'image') cropMode = false;
+  sel = L;
+  refreshPanels();
+  updateList();
+  render();
+  commit();
+}
+
+/* ---------- Desni panel: svojstva odabranog objekta ---------- */
+const TYPE_ICON = L => L.type === 'shape' ? ({ rect: 'rect', ellipse: 'circle', triangle: 'triangle', star: 'star', line: 'line' }[L.kind] || 'rect')
+  : L.type === 'group' ? 'group' : L.type;
+const layerName = L => L.type === 'text' ? (L.text.split('\n')[0].trim() || 'Tekst') : L.name;
+const PT_PER_S = 12 * 72 / 25.4;       // pt veličina fonta za s = 1 (osnovni font 120 px = 12 mm)
+
+// prikaže prava svojstva za odabir (poziva se pri promjeni odabira)
+function refreshPanels() {
+  const multi = extra.size > 0, one = !!sel && !multi;
+  $('propsEmpty').hidden = !!sel;
+  $('propsObj').hidden = !one;
+  $('propsMulti').hidden = !multi;
+  if (one) {
+    $('objIcon').innerHTML = ico(TYPE_ICON(sel));
+    $('objName').textContent = layerName(sel);
+    $('secImage').hidden = sel.type !== 'image';
+    $('secText').hidden = sel.type !== 'text';
+    $('secShape').hidden = sel.type !== 'shape';
+    $('secGroup').hidden = sel.type !== 'group';
+    const free = sel.type === 'shape';                       // samo oblici se mogu razvlačiti po širini/visini
+    $('pLock').disabled = !free;
+    if (!free) $('pLock').checked = true;
+    if (sel.type === 'image') {
+      $('keyBg').checked = !!sel.keyBg;
+      $('keyTol').value = sel.keyTol || 30;
+      $('cropBtn').lastChild.textContent = cropMode ? 'Gotovo' : 'Obreži';
+    }
+    if (sel.type === 'text') {
+      $('txt').value = sel.text;
+      $('col').value = sel.color;
+      $('fontSel').value = sel.font;
+      document.querySelectorAll('#alignSeg button').forEach(b => b.classList.toggle('on', b.dataset.align === (sel.align || 'center')));
+    }
+    if (sel.type === 'shape') {
+      $('shFill').value = sel.fill; $('shFillOn').checked = sel.fillOn;
+      $('shStroke').value = sel.stroke; $('shStrokeW').value = sel.sw;
+    }
+  }
+  if (multi) $('multiInfo').textContent = `Odabrano objekata: ${1 + extra.size}`;
+  $('grp').disabled = (sel ? 1 : 0) + extra.size < 2;
+  $('ungrp').disabled = !(sel && sel.type === 'group' && !extra.size);
+  document.querySelectorAll('[data-dist]').forEach(b => b.disabled = 1 + extra.size < 3);
+  syncProps();
+}
+
+// uskladi brojčana polja s trenutnim stanjem objekta (ne dira polje u kojem korisnik upravo tipka)
+function syncProps() {
+  const set = (id, v) => { const el = $(id); if (el && document.activeElement !== el) el.value = v; };
+  if (sel && !extra.size) {
+    set('pX', +((sel.x - PX0) / PX).toFixed(2));
+    set('pY', +((sel.y - PY0) / PX).toFixed(2));
+    set('pW', +(sel.bw * sel.s / PX).toFixed(2));
+    set('pH', +(sel.bh * sel.s / PX).toFixed(2));
+    set('rot', sel.rot); set('rotNum', sel.rot);
+    if (sel.type === 'text') set('fontSize', +(sel.s * PT_PER_S).toFixed(1));
+  }
+  const objects = layers.length;
+  $('infCount').textContent = objects;
+  $('stCount').textContent = `Objekata: ${objects}`;
+  $('infName').textContent = $('projName').value || '–';
+}
+
+const SHAPE_NAMES = { rect: 'Pravokutnik', ellipse: 'Krug / elipsa', triangle: 'Trokut', star: 'Zvijezda', line: 'Linija' };
+
+function addShape(kind) {
+  const size = kind === 'line' ? 700 : 500;
+  const L = {
+    type: 'shape', kind, name: SHAPE_NAMES[kind], bw: size, bh: kind === 'line' ? 30 : size,
+    s: 1, rot: 0, x: W / 2, y: H / 2, fill: '#2563eb', fillOn: kind !== 'line', stroke: '#111111', sw: kind === 'line' ? 12 : 0
+  };
+  layers.push(L); select(L);
+}
+
+function loadImage(src, props, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const f = Math.min(1, 800 / img.width, PRINT_H * 0.9 / img.height);
+    const L = { type: 'image', src, img, name: 'Slika', iw: img.naturalWidth, ih: img.naturalHeight,
+      crop: { l: 0, t: 0, r: 0, b: 0 }, s: f, rot: 0, x: W / 2, y: H / 2, ...props };
+    L.bw = L.iw * (1 - L.crop.l - L.crop.r);       // prikazana (obrezana) veličina u jedinicama sloja
+    L.bh = L.ih * (1 - L.crop.t - L.crop.b);
+    cb(L);
+  };
+  img.src = src;
+}
+
+function addImage(file) {
+  const fr = new FileReader();
+  fr.onload = () => loadImage(fr.result, { name: file.name }, L => { layers.push(L); select(L); });
+  fr.readAsDataURL(file);
+}
+
+/* ---------- Redoslijed slojeva i popis ---------- */
+function move(to) {
+  if (!sel) return;
+  const items = layers.filter(L => L === sel || extra.has(L));      // redoslijed odabranih ostaje isti
+  if (to === 'top' || to === 'bottom') {
+    const rest = layers.filter(L => !items.includes(L));
+    layers.splice(0, layers.length, ...(to === 'top' ? [...rest, ...items] : [...items, ...rest]));
+  } else {
+    const order = to === 'up' ? [...items].reverse() : items;       // pomakni jedno mjesto, bez preskakanja odabranih
+    for (const L of order) {
+      const i = layers.indexOf(L), j = to === 'up' ? i + 1 : i - 1;
+      if (j < 0 || j >= layers.length || items.includes(layers[j])) continue;
+      [layers[i], layers[j]] = [layers[j], layers[i]];
+    }
+  }
+  select(sel, true);
+}
+
+function updateList() {
+  const ul = document.getElementById('layerList');
+  ul.innerHTML = '';
+  [...layers].reverse().forEach(L => {                    // gornji sloj je na vrhu popisa
+    const li = document.createElement('li');
+    li.className = [L === sel || extra.has(L) ? 'sel' : '', L.hidden ? 'hid' : ''].join(' ').trim();
+    li.innerHTML = `${ico(TYPE_ICON(L))}<span class="nm"></span>
+      <button class="mini vis ${L.hidden ? 'on' : ''}" title="${L.hidden ? 'Prikaži' : 'Sakrij'}">${ico(L.hidden ? 'eyeoff' : 'eye', 'sm')}</button>
+      <button class="mini lck ${L.locked ? 'on' : ''}" title="${L.locked ? 'Otključaj' : 'Zaključaj'}">${ico(L.locked ? 'lock' : 'unlock', 'sm')}</button>`;
+    li.querySelector('.nm').textContent = layerName(L);
+    li.onclick = e => {
+      const b = e.target.closest('.mini');
+      if (b) {
+        if (b.classList.contains('vis')) L.hidden = !L.hidden; else L.locked = !L.locked;
+        if (L.hidden && L === sel) cropMode = false;
+        updateList(); refreshPanels(); render();
+        return;
+      }
+      (e.ctrlKey || e.shiftKey || e.metaKey) ? toggleSel(L) : select(L);
+    };
+    ul.appendChild(li);
+  });
+  if (!layers.length) ul.innerHTML = '<li class="empty">Nema slojeva</li>';
+  $('layerCount').textContent = layers.length ? `(${layers.length})` : '';
+}
+
+/* ---------- Višestruki odabir i grupiranje ---------- */
+function toggleSel(L) {
+  let next = sel;
+  if (L === sel) { next = extra.size ? [...extra][0] : null; if (next) extra.delete(next); }
+  else if (extra.has(L)) extra.delete(L);
+  else if (!sel) next = L;
+  else extra.add(L);
+  select(next, true);
+}
+
+const normRot = r => ((Math.round(r) % 360) + 540) % 360 - 180;
+
+function cornersOf(L) {
+  const a = L.rot * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), hw = L.bw * L.s / 2, hh = L.bh * L.s / 2;
+  return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([x, y]) => [L.x + x * c - y * s, L.y + x * s + y * c]);
+}
+
+function groupSelected() {
+  const items = layers.filter(L => L === sel || extra.has(L));      // redoslijed kao na plaštu
+  if (items.length < 2) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  items.forEach(L => cornersOf(L).forEach(([x, y]) => {
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+  }));
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  // djeca su kopije (povijest poništavanja drži stare objekte), položaj relativan prema središtu grupe
+  const children = items.map(L => ({ ...L, uid: undefined, crop: L.crop && { ...L.crop }, x: L.x - cx, y: L.y - cy }));
+  const G = { type: 'group', name: `Grupa (${items.length})`, children, bw: x1 - x0, bh: y1 - y0, s: 1, rot: 0, x: cx, y: cy };
+  const at = layers.indexOf(items[items.length - 1]) - (items.length - 1);
+  items.forEach(L => layers.splice(layers.indexOf(L), 1));
+  layers.splice(at, 0, G);
+  select(G);
+}
+
+function ungroupSelected() {
+  if (!sel || sel.type !== 'group' || extra.size) return;
+  const G = sel, a = G.rot * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const kids = G.children.map(ch => ({
+    ...ch, crop: ch.crop && { ...ch.crop },
+    x: G.x + (ch.x * c - ch.y * s) * G.s, y: G.y + (ch.x * s + ch.y * c) * G.s,
+    s: ch.s * G.s, rot: normRot(ch.rot + G.rot)
+  }));
+  layers.splice(layers.indexOf(G), 1, ...kids);
+  select(kids[0]);
+  kids.slice(1).forEach(k => extra.add(k));
+  updateList(); render();
+}
+
+/* ---------- Spremanje / otvaranje projekta ---------- */
+function download(canvas, name) {
+  const a = document.createElement('a');
+  a.download = name; a.href = canvas.toDataURL('image/png'); a.click();
+}
+
+function serLayer(L) {
+  if (L.type === 'image') return { type: 'image', src: L.src, name: L.name, s: L.s, rot: L.rot, x: L.x, y: L.y, keyBg: !!L.keyBg, keyTol: L.keyTol || 30, crop: L.crop };
+  if (L.type === 'shape') return { type: 'shape', kind: L.kind, name: L.name, bw: L.bw, bh: L.bh, fill: L.fill, fillOn: L.fillOn, stroke: L.stroke, sw: L.sw, s: L.s, rot: L.rot, x: L.x, y: L.y };
+  if (L.type === 'group') return { type: 'group', name: L.name, bw: L.bw, bh: L.bh, s: L.s, rot: L.rot, x: L.x, y: L.y, children: L.children.map(serLayer) };
+  return { type: 'text', text: L.text, color: L.color, font: L.font, align: L.align || 'center', s: L.s, rot: L.rot, x: L.x, y: L.y };
+}
+// zajedničke oznake (nova opcionalna polja; stari projekti se i dalje otvaraju)
+const serWithFlags = L => ({ ...serLayer(L), hidden: !!L.hidden, locked: !!L.locked });
+
+const projectName = () => ($('projName').value.trim() || 'projekt-salice').replace(/[\\/:*?"<>|]+/g, '-');
+
+function saveProject() {
+  const data = { version: 1, layers: layers.map(serWithFlags) };
+  const a = document.createElement('a');
+  a.download = `${projectName()}.json`;
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  a.click();
+  commit();
+  savedSig = hist[hi].sig;                 // stanje je spremljeno
+  updateStatus();
+}
+
+function newProject() {
+  if (isDirty() && !confirm('Postoje nespremljene promjene. Započeti novi projekt?')) return;
+  layers.length = 0; extra.clear(); sel = null; cropMode = false;
+  hist.length = 0; hi = -1;
+  $('projName').value = 'Neimenovani projekt';
+  select(null);
+  savedSig = hist[hi].sig;
+  updateStatus();
+}
+
+function openProject(file) {
+  if (isDirty() && !confirm('Postoje nespremljene promjene. Otvoriti drugi projekt?')) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    const data = JSON.parse(fr.result);
+    const build = it => new Promise(res => {
+      if (it.type === 'text') { const L = { ...it }; measureText(L); res(L); }
+      else if (it.type === 'shape') res({ ...it });
+      else if (it.type === 'group') Promise.all(it.children.map(build)).then(children => res({ ...it, children }));
+      else loadImage(it.src, it, res);
+    });
+    Promise.all(data.layers.map(build)).then(out => {
+      layers.length = 0;
+      out.forEach(L => layers.push(L));
+      $('projName').value = file.name.replace(/\.json$/i, '');
+      select(null);
+      savedSig = hist[hi].sig;
+      updateStatus();
+    });
+  };
+  fr.readAsText(file);
+}
+
+function addText() {
+  const L = { type: 'text', text: 'Moj tekst', color: '#111111', font: 'Georgia, serif', align: 'center', s: 1, rot: 0, x: W / 2, y: H / 2 };
+  measureText(L); layers.push(L); select(L);
+}
+
+function hit(L, px, py) {
+  const a = -L.rot * Math.PI / 180;
+  const dx = px - L.x, dy = py - L.y;
+  const lx = dx * Math.cos(a) - dy * Math.sin(a);
+  const ly = dx * Math.sin(a) + dy * Math.cos(a);
+  return Math.abs(lx) <= L.bw * L.s / 2 && Math.abs(ly) <= L.bh * L.s / 2;
+}
+
+function pt(e) {
+  const r = editor.getBoundingClientRect();
+  return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height];
+}
+
+const HS = 44, ROT_OFF = 130;   // pola veličine ručice, razmak ručice za rotaciju
+
+/* ---------- Obrezivanje slike ---------- */
+function toLocal(L, px, py) {
+  const a = -L.rot * Math.PI / 180, dx = px - L.x, dy = py - L.y;
+  return [dx * Math.cos(a) - dy * Math.sin(a), dx * Math.sin(a) + dy * Math.cos(a)];
+}
+
+function cropHandleAt(L, px, py) {
+  const [lx, ly] = toLocal(L, px, py);
+  const hw = L.bw * L.s / 2, hh = L.bh * L.s / 2;
+  for (const sx of [-1, 0, 1]) for (const sy of [-1, 0, 1]) {
+    if (!sx && !sy) continue;
+    if (Math.abs(lx - sx * hw) < HS && Math.abs(ly - sy * hh) < HS) return { sx, sy };
+  }
+  return null;
+}
+
+// postavi novo obrezivanje; slika ostaje na istom mjestu (pomiče se središte vidljivog dijela)
+function setCrop(L, c) {
+  const off = k => [(k.l - k.r) / 2 * L.iw * L.s, (k.t - k.b) / 2 * L.ih * L.s];
+  const [ox, oy] = off(L.crop), [nx, ny] = off(c);
+  const a = L.rot * Math.PI / 180, dx = nx - ox, dy = ny - oy;
+  L.x += dx * Math.cos(a) - dy * Math.sin(a);
+  L.y += dx * Math.sin(a) + dy * Math.cos(a);
+  L.crop = c;
+  L.bw = L.iw * (1 - c.l - c.r);
+  L.bh = L.ih * (1 - c.t - c.b);
+}
+
+function dragCrop(L, sx, sy, px, py) {
+  const [lx, ly] = toLocal(L, px, py);
+  const c = { ...L.crop }, min = 0.05;
+  const clamp = (v, hi) => Math.min(Math.max(0, v), Math.max(0, hi));
+  if (sx < 0) c.l = clamp(c.l + (lx / L.s + L.bw / 2) / L.iw, 1 - c.r - min);
+  if (sx > 0) c.r = clamp(c.r - (lx / L.s - L.bw / 2) / L.iw, 1 - c.l - min);
+  if (sy < 0) c.t = clamp(c.t + (ly / L.s + L.bh / 2) / L.ih, 1 - c.b - min);
+  if (sy > 0) c.b = clamp(c.b - (ly / L.s - L.bh / 2) / L.ih, 1 - c.t - min);
+  setCrop(L, c);
+}
+
+function handleAt(L, px, py) {
+  const a = -L.rot * Math.PI / 180;
+  const dx = px - L.x, dy = py - L.y;
+  const lx = dx * Math.cos(a) - dy * Math.sin(a);
+  const ly = dx * Math.sin(a) + dy * Math.cos(a);
+  const hw = L.bw * L.s / 2, hh = L.bh * L.s / 2;
+  if (Math.hypot(lx, ly + hh + ROT_OFF) < HS) return 'rot';
+  for (const sx of [-1, 1]) for (const sy of [-1, 1])
+    if (Math.abs(lx - sx * hw) < HS && Math.abs(ly - sy * hh) < HS) return 'scale';
+  return null;
+}
+
+let drag = null;
+editor.addEventListener('pointerdown', e => {
+  const [px, py] = pt(e);
+  if (sel && cropMode && sel.type === 'image') {
+    const ch = cropHandleAt(sel, px, py);
+    if (ch) { drag = { mode: 'crop', ...ch }; editor.setPointerCapture(e.pointerId); return; }
+  }
+  if (sel && !cropMode && !extra.size && !sel.locked && !sel.hidden) {
+    const h = handleAt(sel, px, py);
+    if (h) {
+      drag = { mode: h, d0: Math.hypot(px - sel.x, py - sel.y), s0: sel.s };
+      editor.setPointerCapture(e.pointerId); return;
+    }
+  }
+  let found = null;
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const L = layers[i];
+    if (!L.hidden && !L.locked && hit(L, px, py)) { found = L; break; }       // skriveni i zaključani slojevi se ne hvataju na plaštu
+  }
+  if (found && (e.shiftKey || e.ctrlKey)) { toggleSel(found); return; }       // dodaj/makni iz odabira
+  if (!(found && extra.size && (found === sel || extra.has(found)))) select(found);
+  if (found) {
+    // pomiče se cijeli odabir
+    drag = { mode: 'move', p0: [px, py], members: [sel, ...extra].filter(L => !L.locked).map(L => ({ L, x0: L.x, y0: L.y })) };
+    editor.setPointerCapture(e.pointerId); editor.style.cursor = 'grabbing';
+  }
+});
+editor.addEventListener('pointermove', e => {
+  const [px, py] = pt(e);
+  if (!drag || !sel) {
+    if (sel && !extra.size && !sel.locked) editor.style.cursor = handleAt(sel, px, py) ? 'nwse-resize' : 'grab';
+    return;
+  }
+  if (drag.mode === 'crop') dragCrop(sel, drag.sx, drag.sy, px, py);
+  else if (drag.mode === 'move') {
+    for (const m of drag.members) { m.L.x = m.x0 + px - drag.p0[0]; m.L.y = m.y0 + py - drag.p0[1]; }
+  }
+  else if (drag.mode === 'scale' && sel.type === 'shape') {
+    // oblici se razvlače po širini i visini
+    const a = -sel.rot * Math.PI / 180, dx = px - sel.x, dy = py - sel.y;
+    const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+    sel.bw = Math.max(20, 2 * Math.abs(lx) / sel.s);
+    if (sel.kind !== 'line') sel.bh = Math.max(20, 2 * Math.abs(ly) / sel.s);
+  } else if (drag.mode === 'scale') {
+    sel.s = Math.min(8, Math.max(0.03, drag.s0 * Math.hypot(px - sel.x, py - sel.y) / drag.d0));
+  } else {
+    let r = Math.atan2(py - sel.y, px - sel.x) * 180 / Math.PI + 90;
+    if (r > 180) r -= 360;
+    r = Math.round(r);
+    // lagano "lijepljenje" na 0/90/180°; sa Shift na svakih 15°
+    if (e.shiftKey) r = Math.round(r / 15) * 15;
+    else { const m = Math.round(r / 90) * 90; if (Math.abs(r - m) <= 3) r = m; }
+    if (r > 180) r -= 360; if (r < -180) r += 360;
+    sel.rot = r;
+  }
+  render();
+});
+editor.addEventListener('pointerup', () => { drag = null; editor.style.cursor = 'grab'; commit(); });
+/* ---------- Zoom uređivača ---------- */
+const editorWrap = $('editorWrap');
+let zoom = 100;
+// 100 % = cijeli plašt stane u raspoloživi prostor; omjer stranica (245 : 95 mm) uvijek ostaje sačuvan
+function fitWidth() {
+  const cs = getComputedStyle(editorWrap);
+  const aw = editorWrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const ah = editorWrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  return Math.max(120, Math.min(aw, ah * W / H));
+}
+function setZoom(z, cx = 0.5, cy = 0.5) {
+  z = Math.min(800, Math.max(25, Math.round(z)));
+  const ow = editor.clientWidth || 1, oh = editor.clientHeight || 1;
+  // točka koja ostaje pod pokazivačem (u udjelima canvasa)
+  const fx = (editorWrap.scrollLeft + cx * editorWrap.clientWidth - editor.offsetLeft) / ow;
+  const fy = (editorWrap.scrollTop + cy * editorWrap.clientHeight - editor.offsetTop) / oh;
+  zoom = z;
+  editor.style.width = (fitWidth() * z / 100) + 'px';
+  $('zoomVal').textContent = z + '%';
+  $('stZoom').textContent = `Zoom: ${z}%`;
+  editorWrap.scrollLeft = fx * editor.clientWidth + editor.offsetLeft - cx * editorWrap.clientWidth;
+  editorWrap.scrollTop = fy * editor.clientHeight + editor.offsetTop - cy * editorWrap.clientHeight;
+}
+$('zoomIn').onclick = () => setZoom(zoom * 1.25);
+$('zoomOut').onclick = () => setZoom(zoom / 1.25);
+$('zoomFit').onclick = () => setZoom(100);
+editorWrap.addEventListener('wheel', e => {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  const r = editorWrap.getBoundingClientRect();
+  setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+}, { passive: false });
+new ResizeObserver(() => setZoom(zoom)).observe(editorWrap);       // prilagodi radnu površinu promjeni veličine prozora/panela
+
+editor.addEventListener('wheel', e => {
+  if (!sel || e.ctrlKey || sel.locked || extra.size) return;
+  e.preventDefault();
+  sel.s = Math.min(4, Math.max(0.05, sel.s * (e.deltaY < 0 ? 1.06 : 1 / 1.06)));
+  render();
+  clearTimeout(wheelTimer); wheelTimer = setTimeout(commit, 400);
+}, { passive: false });
+let wheelTimer = null;
+
+// drag & drop bilo gdje na stranici: slike se dodaju, .json otvara projekt
+const dropHint = document.getElementById('dropHint');
+let dragDepth = 0;
+window.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; dropHint.style.display = 'flex'; });
+window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; dropHint.style.display = 'none'; } });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  dragDepth = 0; dropHint.style.display = 'none';
+  const files = [...e.dataTransfer.files];
+  const proj = files.find(f => /\.json$/i.test(f.name) || f.type === 'application/json');
+  if (proj) openProject(proj);
+  else files.filter(f => f.type.startsWith('image/')).forEach(addImage);
+});
+
+/* ---------- Povezivanje sučelja s postojećom logikom ---------- */
+// lijeva alatna traka
+$('file').addEventListener('change', e => { [...e.target.files].forEach(addImage); e.target.value = ''; });
+$('addText').onclick = () => { closeShapeMenu(); addText(); };
+const shapeMenu = $('shapeMenu');
+function closeShapeMenu() {
+  shapeMenu.hidden = true;
+  $('toolShapes').classList.remove('active');
+  $('toolSelect').classList.add('active');
+}
+$('toolSelect').onclick = closeShapeMenu;
+$('toolShapes').onclick = () => {
+  const open = shapeMenu.hidden;
+  shapeMenu.hidden = !open;
+  $('toolShapes').classList.toggle('active', open);
+  $('toolSelect').classList.toggle('active', !open);
+};
+document.querySelectorAll('[data-shape]').forEach(b => b.onclick = () => { addShape(b.dataset.shape); closeShapeMenu(); });
+document.addEventListener('click', e => { if (!shapeMenu.hidden && !e.target.closest('#shapeMenu, #toolShapes')) closeShapeMenu(); });
+
+function toggleLayers() {
+  if ($('app').classList.contains('noSide')) toggleSide();
+  else { const open = $('layersPanel').classList.toggle('open'); $('toolLayers').classList.toggle('active', open); }
+}
+$('toolLayers').onclick = toggleLayers;
+$('layersHead').onclick = () => { const open = $('layersPanel').classList.toggle('open'); $('toolLayers').classList.toggle('active', open); };
+$('toolLayers').classList.add('active');
+
+function toggleSide() {
+  const off = $('app').classList.toggle('noSide');
+  $('sideToggle').textContent = off ? '◂ Prikaži panel' : 'Sakrij panel ▸';
+}
+$('sideToggle').onclick = toggleSide;
+
+// gornja traka
+$('newProj').onclick = newProject;
+$('saveProj').onclick = saveProject;
+$('undoBtn').onclick = undo;
+$('redoBtn').onclick = redo;
+$('openProj').addEventListener('change', e => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; });
+$('projName').oninput = syncProps;
+$('logoSmall').title = 'MugLab – klikni za uvodni ekran';
+window.addEventListener('beforeunload', e => { if (isDirty()) { e.preventDefault(); e.returnValue = ''; } });
+
+// svojstva: položaj i veličina (mm, od gornjeg lijevog kuta područja ispisa; X/Y je središte objekta)
+const clampS = v => Math.min(50, Math.max(0.01, v));
+const single = () => sel && !extra.size && !sel.locked;
+$('pX').oninput = () => { const v = parseFloat($('pX').value); if (single() && Number.isFinite(v)) { sel.x = PX0 + v * PX; render(); } };
+$('pY').oninput = () => { const v = parseFloat($('pY').value); if (single() && Number.isFinite(v)) { sel.y = PY0 + v * PX; render(); } };
+function sizeInput(axis) {
+  const v = parseFloat($(axis === 'w' ? 'pW' : 'pH').value);
+  if (!single() || !(v > 0)) return;
+  const free = sel.type === 'shape' && !$('pLock').checked;
+  if (free) {                                                    // oblik: neovisna širina / visina
+    if (axis === 'w') sel.bw = Math.max(1, v * PX / sel.s); else sel.bh = Math.max(1, v * PX / sel.s);
+  } else {                                                       // ostalo: proporcionalno
+    const f = axis === 'w' ? v * PX / (sel.bw * sel.s) : v * PX / (sel.bh * sel.s);
+    sel.s = clampS(sel.s * f);
+  }
+  render();
+}
+$('pW').oninput = () => sizeInput('w');
+$('pH').oninput = () => sizeInput('h');
+$('pW').onchange = $('pH').onchange = $('pX').onchange = $('pY').onchange = () => syncProps();
+
+// rotacija: točan kut (normaliziran na -180..180)
+function setRot(v) {
+  if (!single() || !Number.isFinite(v)) return;
+  sel.rot = ((Math.round(v) % 360) + 540) % 360 - 180;
+  render();
+}
+$('rot').oninput = e => setRot(+e.target.value);
+$('rotNum').oninput = e => { if (e.target.value !== '') setRot(+e.target.value); };
+$('rotNum').onchange = () => syncProps();
+$('rotL').onclick = () => { if (sel) setRot(sel.rot - 90); };
+$('rotR').onclick = () => { if (sel) setRot(sel.rot + 90); };
+$('rot0').onclick = () => setRot(0);
+$('center').onclick = () => { if (single()) { sel.x = W / 2; sel.y = H / 2; render(); } };
+
+function deleteSelected() {
+  if (!sel) return;
+  [sel, ...extra].forEach(L => layers.splice(layers.indexOf(L), 1));
+  select(null);
+}
+document.querySelectorAll('[data-act=delete]').forEach(b => b.onclick = deleteSelected);
+document.querySelectorAll('[data-order]').forEach(b => b.onclick = () => move(b.dataset.order));
+$('grp').onclick = groupSelected;
+$('ungrp').onclick = ungroupSelected;
+
+// tekst
+$('txt').oninput = e => {
+  if (!sel || sel.type !== 'text') return;
+  sel.text = e.target.value || ' ';
+  measureText(sel); updateList(); $('objName').textContent = layerName(sel); render();
+};
+$('fontSel').onchange = e => { if (sel && sel.type === 'text') { sel.font = e.target.value; measureText(sel); render(); } };
+$('fontSize').oninput = e => { const v = parseFloat(e.target.value); if (sel && sel.type === 'text' && v > 0) { sel.s = clampS(v / PT_PER_S); render(); } };
+$('fontSize').onchange = () => syncProps();
+$('col').oninput = e => { if (sel && sel.type === 'text') { sel.color = e.target.value; render(); } };
+document.querySelectorAll('#alignSeg button').forEach(b => b.onclick = () => {
+  if (!sel || sel.type !== 'text') return;
+  sel.align = b.dataset.align;
+  document.querySelectorAll('#alignSeg button').forEach(x => x.classList.toggle('on', x === b));
+  render();
+});
+
+// slika
+$('keyBg').onchange = e => { if (sel && sel.type === 'image') { sel.keyBg = e.target.checked; sel.keyTol = sel.keyTol || +$('keyTol').value; render(); } };
+$('keyTol').onchange = e => { if (sel && sel.type === 'image') { sel.keyTol = +e.target.value; render(); } };
+$('cropBtn').onclick = () => {
+  if (!sel || sel.type !== 'image') return;
+  cropMode = !cropMode;
+  $('cropBtn').lastChild.textContent = cropMode ? 'Gotovo' : 'Obreži';
+  render();
+};
+$('cropReset').onclick = () => { if (sel && sel.type === 'image') { setCrop(sel, { l: 0, t: 0, r: 0, b: 0 }); render(); } };
+
+// oblik
+const shapeProp = (id, fn) => $(id).addEventListener('input', e => { if (sel && sel.type === 'shape') { fn(sel, e.target); render(); } });
+shapeProp('shFill', (L, el) => L.fill = el.value);
+shapeProp('shFillOn', (L, el) => L.fillOn = el.checked);
+shapeProp('shStroke', (L, el) => L.stroke = el.value);
+shapeProp('shStrokeW', (L, el) => L.sw = Math.max(0, +el.value || 0));
+
+// više objekata: poravnavanje i raspoređivanje (po omeđujućim pravokutnicima)
+function bboxOf(L) {
+  const c = cornersOf(L), xs = c.map(p => p[0]), ys = c.map(p => p[1]);
+  return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+}
+const movable = () => [sel, ...extra].filter(L => L && !L.locked);
+function alignSel(mode) {
+  const items = movable();
+  if (items.length < 2) return;
+  const bb = items.map(L => ({ L, b: bboxOf(L) }));
+  const X0 = Math.min(...bb.map(o => o.b.x0)), X1 = Math.max(...bb.map(o => o.b.x1));
+  const Y0 = Math.min(...bb.map(o => o.b.y0)), Y1 = Math.max(...bb.map(o => o.b.y1));
+  for (const { L, b } of bb) {
+    if (mode === 'left') L.x += X0 - b.x0;
+    else if (mode === 'right') L.x += X1 - b.x1;
+    else if (mode === 'hcenter') L.x += (X0 + X1) / 2 - (b.x0 + b.x1) / 2;
+    else if (mode === 'top') L.y += Y0 - b.y0;
+    else if (mode === 'bottom') L.y += Y1 - b.y1;
+    else if (mode === 'vcenter') L.y += (Y0 + Y1) / 2 - (b.y0 + b.y1) / 2;
+  }
+  render();
+}
+function distributeSel(axis) {
+  const items = movable();
+  if (items.length < 3) return;
+  const a0 = axis === 'h' ? 'x0' : 'y0', a1 = axis === 'h' ? 'x1' : 'y1';
+  const bb = items.map(L => ({ L, b: bboxOf(L) })).sort((p, q) => p.b[a0] - q.b[a0]);
+  const start = Math.min(...bb.map(o => o.b[a0])), end = Math.max(...bb.map(o => o.b[a1]));
+  const total = bb.reduce((s, o) => s + (o.b[a1] - o.b[a0]), 0);
+  const gap = (end - start - total) / (bb.length - 1);
+  let pos = start;
+  for (const { L, b } of bb) {
+    const d = pos - b[a0];
+    if (axis === 'h') L.x += d; else L.y += d;
+    pos += (b[a1] - b[a0]) + gap;
+  }
+  render();
+}
+document.querySelectorAll('[data-align-obj]').forEach(b => b.onclick = () => alignSel(b.dataset.alignObj));
+document.querySelectorAll('[data-dist]').forEach(b => b.onclick = () => distributeSel(b.dataset.dist));
+
+// bilo koja završena promjena (puštanje klizača, klik na gumb...) ulazi u povijest ako se nešto promijenilo
+document.addEventListener('change', commit);
+document.addEventListener('click', () => setTimeout(commit, 0));
+
+/* ---------- Dijalog za izvoz ---------- */
+const exportDlg = $('exportDlg');
+function updateExportUI() {
+  const sheet = $('expWhat').value === 'sheet';
+  document.querySelectorAll('.sheetOnly').forEach(el => {
+    el.classList.toggle('dis', !sheet);
+    el.querySelectorAll('input').forEach(i => i.disabled = !sheet);
+  });
+}
+// pregled rasporeda: iste funkcije (packSheet / layoutSheet / cutLines) kao i pri izvozu, ali u nižoj rezoluciji
+function drawExportPreview() {
+  const cv = $('expPrev'), info = $('expPrevInfo');
+  const num = id => Math.max(0, +$(id).value || 0);
+  const piece = renderDesign(150, num('margin'));
+  const x = cv.getContext('2d');
+  if (!piece) {
+    cv.width = 240; cv.height = 340; x.clearRect(0, 0, 240, 340);
+    x.fillStyle = '#fff'; x.fillRect(0, 0, 240, 340);
+    info.textContent = 'Na plaštu nema ničega za izvoz.';
+    return;
+  }
+  const size = `${piece.wmm.toFixed(1)} × ${piece.hmm.toFixed(1)} mm`;
+  if ($('expWhat').value === 'piece') {
+    cv.width = 240; cv.height = Math.max(40, Math.round(240 * piece.hmm / piece.wmm));
+    x.clearRect(0, 0, cv.width, cv.height);
+    x.drawImage(piece.canvas, 0, 0, cv.width, cv.height);
+    info.textContent = `Izrezani dizajn: ${size}`;
+    return;
+  }
+  const gap = num('gap'), edge = num('edge');
+  const p = packSheet(piece.wmm, piece.hmm, edge, gap);
+  if (!p) { cv.width = 240; cv.height = 340; x.fillStyle = '#fff'; x.fillRect(0, 0, 240, 340); info.textContent = `Dizajn (${size}) ne stane na A4.`; return; }
+  const want = Math.floor(num('copies'));
+  const count = want ? Math.min(want, p.n) : p.n;
+  const places = layoutSheet(p, count, gap);
+  const lines = $('cutLines').checked ? cutLines(p, count, gap) : [];
+  const sc = 240 / p.PW;
+  cv.width = 240; cv.height = Math.round(p.PH * sc);
+  x.fillStyle = '#fff'; x.fillRect(0, 0, cv.width, cv.height);
+  x.strokeStyle = '#bfc4cc'; x.lineWidth = 1;
+  for (const l of lines) { x.beginPath(); x.moveTo(l.x1 * sc, l.y1 * sc); x.lineTo(l.x2 * sc, l.y2 * sc); x.stroke(); }
+  for (const q of places) {
+    x.save();
+    if (q.rot) { x.translate(q.x * sc, (q.y + q.h) * sc); x.rotate(-Math.PI / 2); }
+    else x.translate(q.x * sc, q.y * sc);
+    x.drawImage(piece.canvas, 0, 0, piece.wmm * sc, piece.hmm * sc);
+    x.restore();
+  }
+  info.textContent = `A4 ${p.PW > p.PH ? 'položeno' : 'uspravno'}: ${count} × ${size}` + (want && want > p.n ? ` (traženo ${want}, stane ${p.n})` : ` (stane najviše ${p.n})`);
+}
+let prevTimer = null;
+const schedulePreview = () => { clearTimeout(prevTimer); prevTimer = setTimeout(drawExportPreview, 150); };
+$('openExport').onclick = () => {
+  $('expInfo').textContent = '';
+  exportDlg.showModal();
+  updateExportUI();
+  drawExportPreview();
+};
+$('expClose').onclick = $('expCancel').onclick = () => exportDlg.close();
+exportDlg.addEventListener('mousedown', e => { if (e.target === exportDlg) exportDlg.close(); });        // klik na pozadinu zatvara
+['expWhat', 'expFmt', 'dpi', 'margin', 'gap', 'edge', 'copies', 'cutLines'].forEach(id =>
+  $(id).addEventListener('input', () => { updateExportUI(); schedulePreview(); }));
+
+/* ---------- Tipkovnički prečaci ---------- */
+window.addEventListener('keydown', e => {
+  const t = e.target;
+  const typing = t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && ['text', 'number'].includes(t.type));
+  if (e.key === 'Escape') {
+    closeShapeMenu();
+    if (cropMode) { cropMode = false; refreshPanels(); render(); }
+    return;
+  }
+  if (exportDlg.open) return;
+  if (e.ctrlKey || e.metaKey) {
+    const k = e.key.toLowerCase();
+    if (k === 's') { e.preventDefault(); saveProject(); return; }
+    if (typing) return;
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+    else if (k === 'g') { e.preventDefault(); e.shiftKey ? ungroupSelected() : groupSelected(); }
+    else if (k === 'a' && layers.length) {
+      e.preventDefault();
+      select(layers[layers.length - 1]);
+      layers.slice(0, -1).forEach(L => extra.add(L));
+      updateList(); refreshPanels(); render();
+    }
+    return;
+  }
+  if (typing || e.altKey) return;
+  if (e.key === 'Delete' && sel) deleteSelected();
+  else if (e.key === 'v' || e.key === 'V') closeShapeMenu();
+  else if (e.key === 't' || e.key === 'T') { closeShapeMenu(); addText(); }
+});
+
+/* ---------- 3D scena ---------- */
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;      // bez ACES-a: bijela ostaje bijela, a boje printa vjerne
+view.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdde2e8);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(35, 1, 1, 1000);
+camera.position.set(150, 85, -150);              // blag pogled odozgor (oko 20°), ručka vidljiva lijevo
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, 0, 0);
+controls.minDistance = 120; controls.maxDistance = 450;
+
+const key = new THREE.DirectionalLight(0xffffff, 1.4);
+key.position.set(120, 180, -180);
+scene.add(key);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xffffff, 1.7));   // mekano svjetlo da šalica ne bude siva
+
+const tex = new THREE.CanvasTexture(wrap);
+tex.colorSpace = THREE.SRGBColorSpace;
+tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+const ceramic = (opts = {}) => new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.18, clearcoat: 0.6, clearcoatRoughness: 0.1, envMapIntensity: 1.0, ...opts });
+
+const mug = new THREE.Group();
+// vanjski plašt s printom: u=0.5 je pogled sprijeda (-z), ručka na +z
+const outer = new THREE.Mesh(
+  new THREE.CylinderGeometry(R_TOP, R_BOT, MUG_H, 128, 1, true),
+  ceramic({ map: tex })
+);
+mug.add(outer);
+// unutrašnjost
+const inner = new THREE.Mesh(
+  new THREE.CylinderGeometry(R_TOP - 3, R_BOT - 3, MUG_H - 5, 96, 1, true),
+  ceramic({ side: THREE.BackSide })
+);
+inner.position.y = 2.5;
+mug.add(inner);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(R_BOT - 3, 64), ceramic());
+floor.rotation.x = -Math.PI / 2; floor.position.y = -MUG_H / 2 + 5;
+mug.add(floor);
+const bottom = new THREE.Mesh(new THREE.CircleGeometry(R_BOT, 64), ceramic());
+bottom.rotation.x = Math.PI / 2; bottom.position.y = -MUG_H / 2;
+mug.add(bottom);
+// obod
+const rim = new THREE.Mesh(new THREE.TorusGeometry(R_TOP - 1.5, 1.5, 16, 96), ceramic());
+rim.rotation.x = Math.PI / 2; rim.position.y = MUG_H / 2;
+mug.add(rim);
+// ručka
+const handle = new THREE.Mesh(new THREE.TorusGeometry(24, 4.2, 20, 48, Math.PI), ceramic());
+handle.scale.set(1.25, 1, 1);
+handle.rotation.z = -Math.PI / 2;
+const hg = new THREE.Group();
+hg.add(handle);
+hg.rotation.y = -Math.PI / 2;      // ručka prema +z
+hg.position.set(0, 0, (R_TOP + R_BOT) / 2 - 3);
+mug.add(hg);
+scene.add(mug);
+
+// podloga / sjena
+const ground = new THREE.Mesh(new THREE.CircleGeometry(160, 64), new THREE.ShadowMaterial({ opacity: 0.18 }));
+ground.rotation.x = -Math.PI / 2; ground.position.y = -MUG_H / 2 - 0.1;
+scene.add(ground);
+renderer.shadowMap.enabled = true;
+key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+Object.assign(key.shadow.camera, { left: -150, right: 150, top: 150, bottom: -150, near: 10, far: 500 });
+ground.receiveShadow = true;
+mug.traverse(o => { if (o.isMesh) o.castShadow = true; });
+
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  if (!w || !h) return;                       // panel je sklopljen
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view);
+resize();
+(function loop() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
+
+// standardni pogledi na šalicu (ručka je na +z, dizajn na -z)
+const VIEWS = { home: [150, 85, -150], front: [0, 35, -235], side: [235, 35, 0], top: [0, 260, -40] };
+const viewBtns = [...document.querySelectorAll('[data-view]')];
+function setView(name) {
+  camera.position.set(...VIEWS[name]);
+  controls.target.set(0, 0, 0);
+  controls.update();
+  viewBtns.forEach(b => b.classList.toggle('on', b.dataset.view === name));
+}
+viewBtns.forEach(b => b.onclick = () => setView(b.dataset.view));
+controls.addEventListener('start', () => viewBtns.forEach(b => b.classList.remove('on')));   // korisnik je sam okrenuo šalicu
+viewBtns[0].classList.add('on');
+
+/* ---------- Izvoz ---------- */
+/* ---------- Izvoz za tisak: slojevi se ponovno iscrtavaju u punoj rezoluciji ---------- */
+const crcTable = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = crcTable[(c ^ bytes[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+// u PNG ugrađuje DPI (pHYs), pa softver pisača zna da je slika 200 × 85 mm
+function pngWithDpi(buf, dpi) {
+  const ppm = Math.round(dpi / 0.0254);
+  const chunk = new Uint8Array(21);
+  const dv = new DataView(chunk.buffer);
+  dv.setUint32(0, 9);
+  chunk.set([0x70, 0x48, 0x59, 0x73], 4);           // 'pHYs'
+  dv.setUint32(8, ppm); dv.setUint32(12, ppm); chunk[16] = 1;
+  dv.setUint32(17, crc32(chunk.subarray(4, 17)));
+  const src = new Uint8Array(buf);
+  const out = new Uint8Array(src.length + chunk.length);
+  out.set(src.subarray(0, 33), 0);                   // potpis + IHDR
+  out.set(chunk, 33);
+  out.set(src.subarray(33), 33 + chunk.length);
+  return out;
+}
+
+// iscrta slojeve u punoj rezoluciji (prozirna pozadina) i izreže na najmanji pravokutnik + marginu
+function renderDesign(dpi, marginMm) {
+  const k = dpi / 25.4;                                   // px po mm
+  const pw = Math.round(200 * k), ph = Math.round(85 * k);
+  const c = document.createElement('canvas');
+  c.width = pw; c.height = ph;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+  x.scale(pw / PRINT_W, ph / PRINT_H);
+  x.translate(-PX0, -PY0);
+  x.beginPath(); x.rect(PX0, PY0, PRINT_W, PRINT_H); x.clip();
+  layers.forEach(L => drawLayer(x, L));
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  const d = x.getImageData(0, 0, pw, ph).data;
+  let x0 = pw, y0 = ph, x1 = -1, y1 = -1;
+  for (let y = 0; y < ph; y++) for (let xx = 0; xx < pw; xx++) {
+    if (d[(y * pw + xx) * 4 + 3] > 0) {
+      if (xx < x0) x0 = xx; if (xx > x1) x1 = xx;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  if (x1 < 0) return null;
+  const m = Math.round(marginMm * k), cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+  const out = document.createElement('canvas');
+  out.width = cw + 2 * m; out.height = ch + 2 * m;
+  out.getContext('2d').drawImage(c, x0, y0, cw, ch, m, m, cw, ch);
+  return { canvas: out, wmm: out.width / k, hmm: out.height / k, k };
+}
+
+// najbolji raspored u mreži: A4 uspravno/položeno, dizajn uspravno/zakrenut za 90°
+function packSheet(w, h, edge, gap) {
+  let best = null;
+  for (const land of [false, true]) {
+    const PW = land ? 297 : 210, PH = land ? 210 : 297;
+    for (const rot of [false, true]) {
+      const iw = rot ? h : w, ih = rot ? w : h;
+      const cols = Math.floor((PW - 2 * edge + gap) / (iw + gap));
+      const rows = Math.floor((PH - 2 * edge + gap) / (ih + gap));
+      if (cols < 1 || rows < 1) continue;
+      if (!best || cols * rows > best.n) best = { PW, PH, rot, iw, ih, cols, rows, n: cols * rows };
+    }
+  }
+  return best;
+}
+
+function layoutSheet(p, count, gap) {
+  const used = Math.min(p.cols, count), rows = Math.ceil(count / p.cols);
+  const ox = (p.PW - (used * p.iw + (used - 1) * gap)) / 2;
+  const oy = (p.PH - (rows * p.ih + (rows - 1) * gap)) / 2;
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    out.push({ x: ox + (i % p.cols) * (p.iw + gap), y: oy + Math.floor(i / p.cols) * (p.ih + gap), w: p.iw, h: p.ih, rot: p.rot });
+  }
+  return out;
+}
+
+// linije za rezanje između (i oko) primjeraka; u mm, ishodište gore lijevo
+function cutLines(p, count, gap) {
+  const used = Math.min(p.cols, count), rows = Math.ceil(count / p.cols);
+  const lastCols = count - (rows - 1) * p.cols;
+  const bw = used * p.iw + (used - 1) * gap, bh = rows * p.ih + (rows - 1) * gap;
+  const ox = (p.PW - bw) / 2, oy = (p.PH - bh) / 2;
+  const edgeX = c => c === 0 ? ox : c === used ? ox + bw : ox + c * (p.iw + gap) - gap / 2;
+  const edgeY = r => r === 0 ? oy : r === rows ? oy + bh : oy + r * (p.ih + gap) - gap / 2;
+  const out = [];
+  for (let c = 0; c <= used; c++) {
+    const full = c <= lastCols || rows === 1;
+    const y2 = full ? oy + bh : edgeY(rows - 1) - (gap ? 0 : 0);
+    out.push({ x1: edgeX(c), y1: oy, x2: edgeX(c), y2: full ? y2 : oy + (rows - 1) * (p.ih + gap) + p.ih });
+  }
+  for (let r = 0; r <= rows; r++) {
+    const cols = r === rows ? lastCols : used;
+    out.push({ x1: ox, y1: edgeY(r), x2: ox + cols * p.iw + (cols - 1) * gap, y2: edgeY(r) });
+  }
+  return out;
+}
+
+async function deflate(bytes) {
+  const cs = new CompressionStream('deflate');
+  const w = cs.writable.getWriter();
+  w.write(bytes); w.close();
+  return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+}
+
+// PDF sa slikom i prozirnošću (SMask); jedna slika se ponavlja na svim mjestima
+async function buildPdf(pageW, pageH, img, pieceW, pieceH, places, lines = []) {
+  const MM = 72 / 25.4;
+  const cw = img.width, ch = img.height;
+  const px = img.getContext('2d').getImageData(0, 0, cw, ch).data;
+  const rgb = new Uint8Array(cw * ch * 3), alpha = new Uint8Array(cw * ch);
+  for (let i = 0, j = 0, a = 0; i < px.length; i += 4, j += 3, a++) {
+    rgb[j] = px[i]; rgb[j + 1] = px[i + 1]; rgb[j + 2] = px[i + 2]; alpha[a] = px[i + 3];
+  }
+  const [zrgb, zalpha] = [await deflate(rgb), await deflate(alpha)];
+  const pw = pieceW * MM, ph = pieceH * MM, PH = pageH * MM;
+  let content = '';
+  if (lines.length) {
+    content += '0.78 G 0.25 w\n';                        // svijetlosiva, tanka linija
+    for (const l of lines) content += `${(l.x1 * MM).toFixed(3)} ${(PH - l.y1 * MM).toFixed(3)} m ${(l.x2 * MM).toFixed(3)} ${(PH - l.y2 * MM).toFixed(3)} l S\n`;
+  }
+  for (const p of places) {
+    const x0 = p.x * MM, y0 = PH - (p.y + p.h) * MM;      // donji lijevi kut mjesta
+    content += p.rot
+      ? `q 0 ${pw.toFixed(3)} ${(-ph).toFixed(3)} 0 ${(x0 + ph).toFixed(3)} ${y0.toFixed(3)} cm /Im0 Do Q\n`
+      : `q ${pw.toFixed(3)} 0 0 ${ph.toFixed(3)} ${x0.toFixed(3)} ${y0.toFixed(3)} cm /Im0 Do Q\n`;
+  }
+  const enc = new TextEncoder(), chunks = [], offs = [];
+  let pos = 0;
+  const add = b => { const u = typeof b === 'string' ? enc.encode(b) : b; chunks.push(u); pos += u.length; };
+  const obj = (n, dict, stream) => {
+    offs[n] = pos;
+    add(`${n} 0 obj\n<< ${dict}${stream ? ` /Length ${stream.length}` : ''} >>\n`);
+    if (stream) { add('stream\n'); add(stream); add('\nendstream\n'); }
+    add('endobj\n');
+  };
+  add('%PDF-1.4\n');
+  obj(1, '/Type /Catalog /Pages 2 0 R');
+  obj(2, '/Type /Pages /Kids [3 0 R] /Count 1');
+  obj(3, `/Type /Page /Parent 2 0 R /MediaBox [0 0 ${(pageW * MM).toFixed(3)} ${PH.toFixed(3)}] /Contents 4 0 R /Resources << /XObject << /Im0 5 0 R >> >>`);
+  obj(4, '', enc.encode(content));
+  obj(5, `/Type /XObject /Subtype /Image /Width ${cw} /Height ${ch} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /SMask 6 0 R`, zrgb);
+  obj(6, `/Type /XObject /Subtype /Image /Width ${cw} /Height ${ch} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode`, zalpha);
+  const xref = pos;
+  add('xref\n0 7\n0000000000 65535 f \n');
+  for (let n = 1; n <= 6; n++) add(`${String(offs[n]).padStart(10, '0')} 00000 n \n`);
+  add(`trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.download = name; a.href = URL.createObjectURL(blob); a.click();
+}
+function canvasToPng(canvas, dpi) {
+  return new Promise(res => canvas.toBlob(async b => res(new Blob([pngWithDpi(await b.arrayBuffer(), dpi)], { type: 'image/png' })), 'image/png'));
+}
+
+async function exportPrint() {
+  const info = document.getElementById('expInfo');
+  const num = id => Math.max(0, +document.getElementById(id).value || 0);
+  const dpi = +document.getElementById('dpi').value;
+  const what = document.getElementById('expWhat').value;
+  const fmt = document.getElementById('expFmt').value;
+  info.textContent = 'Priprema…';
+  await new Promise(r => setTimeout(r, 30));     // da se prikaže poruka prije teškog posla
+  const piece = renderDesign(dpi, num('margin'));
+  if (!piece) { info.textContent = 'Na plaštu nema ničega za izvoz.'; return; }
+  const size = `${piece.wmm.toFixed(1)} × ${piece.hmm.toFixed(1)} mm`;
+
+  if (what === 'piece') {
+    if (fmt === 'png') saveBlob(await canvasToPng(piece.canvas, dpi), `dizajn-${dpi}dpi.png`);
+    else saveBlob(await buildPdf(piece.wmm, piece.hmm, piece.canvas, piece.wmm, piece.hmm,
+      [{ x: 0, y: 0, w: piece.wmm, h: piece.hmm, rot: false }]), 'dizajn.pdf');
+    info.textContent = `Spremljeno: ${size}.`;
+    return;
+  }
+
+  const gap = num('gap'), edge = num('edge');
+  const p = packSheet(piece.wmm, piece.hmm, edge, gap);
+  if (!p) { info.textContent = `Dizajn (${size}) ne stane na A4.`; return; }
+  const want = Math.floor(num('copies'));
+  const count = want ? Math.min(want, p.n) : p.n;
+  const places = layoutSheet(p, count, gap);
+  const lines = document.getElementById('cutLines').checked ? cutLines(p, count, gap) : [];
+  if (fmt === 'png') {
+    const k = piece.k, sheet = document.createElement('canvas');
+    sheet.width = Math.round(p.PW * k); sheet.height = Math.round(p.PH * k);
+    const x = sheet.getContext('2d');
+    x.imageSmoothingQuality = 'high';
+    x.strokeStyle = '#c7c7c7'; x.lineWidth = Math.max(1, 0.09 * k);
+    for (const l of lines) { x.beginPath(); x.moveTo(l.x1 * k, l.y1 * k); x.lineTo(l.x2 * k, l.y2 * k); x.stroke(); }
+    for (const q of places) {
+      x.save();
+      if (q.rot) { x.translate(q.x * k, (q.y + q.h) * k); x.rotate(-Math.PI / 2); }
+      else x.translate(q.x * k, q.y * k);
+      x.drawImage(piece.canvas, 0, 0, piece.canvas.width, piece.canvas.height);
+      x.restore();
+    }
+    saveBlob(await canvasToPng(sheet, dpi), `A4-${count}x-${dpi}dpi.png`);
+  } else {
+    saveBlob(await buildPdf(p.PW, p.PH, piece.canvas, piece.wmm, piece.hmm, places, lines), `A4-${count}x.pdf`);
+  }
+  info.textContent = `A4 ${p.PW > p.PH ? 'položeno' : 'uspravno'}: ${count} × ${size}` +
+    (want && want > p.n ? ` (traženo ${want}, stane ${p.n})` : ` (stane najviše ${p.n})`) + '.';
+}
+document.getElementById('savePrint').onclick = exportPrint;
+document.getElementById('saveView').onclick = () => { renderer.render(scene, camera); download(renderer.domElement, 'salica-3d.png'); };
+
+render();
+commit();      // početno (prazno) stanje
+savedSig = hist[hi].sig;
+updateList();
+refreshPanels();
+updateStatus();
+</script>
+</body>
+</html>
