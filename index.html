@@ -140,6 +140,13 @@
   #expPrevInfo { margin-top:8px; color:var(--muted); font-size:12px; }
   .dlgFoot { display:flex; align-items:center; gap:10px; padding:12px 16px; border-top:1px solid var(--line); background:var(--soft); border-radius:0 0 12px 12px; }
   .dlgFoot b { white-space:nowrap; }
+  #nameDlg { width:min(460px, 94vw); }
+  #nameDlg .dlgBody { display:block; }
+  #nameDlg .nameRow { display:flex; align-items:center; gap:6px; margin-top:6px; }
+  #nameDlg .nameRow input { flex:1; min-width:0; }
+  #nameExt { color:var(--muted); font-weight:600; }
+  #nameWarn { margin:10px 0 0; min-height:18px; font-size:12.5px; color:#b45309; }
+  #nameNote { margin:8px 0 0; font-size:12px; color:var(--muted); }
   #expInfo { flex:1; color:var(--muted); font-size:12px; min-height:18px; }
 
   /* uvodni ekran */
@@ -177,6 +184,7 @@
     <button class="tb btn" id="newProj" title="Novi projekt"><i data-i="new"></i><span>Novi</span></button>
     <label class="tb btn" title="Otvori projekt (Ctrl+O)"><i data-i="open"></i><span>Otvori</span><input id="openProj" type="file" accept=".json,application/json"></label>
     <button class="tb btn" id="saveProj" title="Spremi projekt (Ctrl+S)"><i data-i="save"></i><span>Spremi</span></button>
+    <button class="tb btn" id="saveProjAs" title="Spremi projekt pod drugim imenom (Ctrl+Shift+S)"><i data-i="save"></i><span>Spremi kao…</span></button>
     <div class="sep"></div>
     <button class="tb btn icon" id="undoBtn" title="Poništi (Ctrl+Z)" disabled><i data-i="undo"></i></button>
     <button class="tb btn icon" id="redoBtn" title="Ponovi (Ctrl+Y)" disabled><i data-i="redo"></i></button>
@@ -430,6 +438,22 @@
     <span id="expInfo"></span>
     <button id="expCancel">Zatvori</button>
     <button id="savePrint" class="primary"><i data-i="save" class="sm"></i>Spremi datoteku</button>
+  </div>
+</dialog>
+
+<!-- odabir imena datoteke (kad preglednik nema vlastiti prozor "Spremi kao") -->
+<dialog id="nameDlg">
+  <div class="dlgHead"><h2 id="nameTitle">Spremi kao</h2><button class="icon" id="nameClose" title="Zatvori"><i data-i="x"></i></button></div>
+  <div class="dlgBody">
+    <label for="nameInp"><b>Naziv datoteke</b></label>
+    <div class="nameRow"><input id="nameInp" type="text" spellcheck="false" autocomplete="off"><span id="nameExt">.json</span></div>
+    <p id="nameWarn"></p>
+    <p id="nameNote">Datoteka se sprema u mapu za preuzimanja (Downloads).</p>
+  </div>
+  <div class="dlgFoot">
+    <span style="flex:1"></span>
+    <button id="nameCancel">Odustani</button>
+    <button id="nameOk" class="primary"><i data-i="save" class="sm"></i><span>Spremi</span></button>
   </div>
 </dialog>
 
@@ -938,10 +962,6 @@ function ungroupSelected() {
 }
 
 /* ---------- Spremanje / otvaranje projekta ---------- */
-function download(canvas, name) {
-  const a = document.createElement('a');
-  a.download = name; a.href = canvas.toDataURL('image/png'); a.click();
-}
 
 function serLayer(L) {
   if (L.type === 'image') return { type: 'image', src: L.src, name: L.name, s: L.s, rot: L.rot, x: L.x, y: L.y, keyBg: !!L.keyBg, keyTol: L.keyTol || 30, crop: L.crop };
@@ -954,15 +974,117 @@ const serWithFlags = L => ({ ...serLayer(L), hidden: !!L.hidden, locked: !!L.loc
 
 const projectName = () => ($('projName').value.trim() || 'projekt-salice').replace(/[\\/:*?"<>|]+/g, '-');
 
-function saveProject() {
-  const data = { version: 1, layers: layers.map(serWithFlags) };
-  const a = document.createElement('a');
-  a.download = `${projectName()}.json`;
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
-  a.click();
-  commit();
-  savedSig = hist[hi].sig;                 // stanje je spremljeno
-  updateStatus();
+/* ---------- Spremi kao: odabir imena i upozorenje za postojeću datoteku ----------
+   Chrome i Edge: pravi prozor "Spremi kao" (mapa i ime po izboru; sustav sam pita za zamjenu postojeće datoteke).
+   Ostali preglednici: vlastiti prozor za ime; upozorava ako je datoteka tog imena već spremljena iz MugLaba. */
+const KINDS = {
+  json: { ext: '.json', mime: 'application/json', desc: 'MugLab projekt' },
+  pdf:  { ext: '.pdf',  mime: 'application/pdf',  desc: 'PDF za tisak' },
+  png:  { ext: '.png',  mime: 'image/png',        desc: 'PNG slika' },
+};
+const cleanName = (v, ext) => {
+  let n = v.trim();
+  if (n.toLowerCase().endsWith(ext)) n = n.slice(0, -ext.length);
+  return n.replace(/[\\/:*?"<>|]+/g, '-').replace(/^[\s.]+|[\s.]+$/g, '');
+};
+const SAVED_KEY = 'muglab-spremljene-datoteke';
+const savedNames = () => { try { return JSON.parse(localStorage.getItem(SAVED_KEY)) || []; } catch { return []; } };
+const wasSaved = n => savedNames().some(x => x.toLowerCase() === n.toLowerCase());
+function rememberName(n) {
+  try {
+    const a = savedNames().filter(x => x.toLowerCase() !== n.toLowerCase());
+    a.unshift(n);
+    localStorage.setItem(SAVED_KEY, JSON.stringify(a.slice(0, 500)));
+  } catch { /* popis nije nužan */ }
+}
+
+let pickerOk = typeof window.showSaveFilePicker === 'function';
+
+// vraća { name, handle? } ili null ako je korisnik odustao
+async function chooseTarget(base, kind, title) {
+  const k = KINDS[kind];
+  if (pickerOk) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: cleanName(base, k.ext) + k.ext,
+        types: [{ description: k.desc, accept: { [k.mime]: [k.ext] } }],
+      });
+      return { name: handle.name, handle };
+    } catch (e) {
+      if (e.name === 'AbortError') return null;
+      pickerOk = false;                  // npr. stranica u ugrađenom okviru: dalje vlastiti prozor
+    }
+  }
+  const name = await askName(base, k.ext, title);
+  return name ? { name } : null;
+}
+
+async function writeTarget(t, blob) {
+  if (t.handle) {
+    const w = await t.handle.createWritable();
+    await w.write(blob);
+    await w.close();
+  } else {
+    const a = document.createElement('a');
+    a.download = t.name; a.href = URL.createObjectURL(blob); a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  }
+  rememberName(t.name);
+}
+
+function askName(base, ext, title) {
+  return new Promise(res => {
+    const d = $('nameDlg'), inp = $('nameInp'), ok = $('nameOk'), warn = $('nameWarn');
+    $('nameTitle').textContent = title;
+    $('nameExt').textContent = ext;
+    inp.value = cleanName(base, ext);
+    let result = null;
+    const check = () => {
+      const n = cleanName(inp.value, ext), full = n + ext;
+      ok.disabled = !n;
+      if (!n) { warn.textContent = 'Upišite naziv datoteke.'; ok.lastElementChild.textContent = 'Spremi'; }
+      else if (wasSaved(full)) {
+        warn.textContent = `Datoteka „${full}” već je spremljena iz MugLaba. Preglednik je neće prebrisati, nego će novoj dodati broj, npr. „${n} (1)${ext}”. Promijenite naziv ili svejedno spremite.`;
+        ok.lastElementChild.textContent = 'Svejedno spremi';
+      } else { warn.textContent = ''; ok.lastElementChild.textContent = 'Spremi'; }
+    };
+    inp.oninput = check;
+    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); ok.click(); } };
+    ok.onclick = () => { const n = cleanName(inp.value, ext); if (!n) return; result = n + ext; d.close(); };
+    $('nameCancel').onclick = $('nameClose').onclick = () => d.close();
+    d.onclose = () => res(result);
+    check();
+    d.showModal();
+    inp.focus(); inp.select();
+  });
+}
+
+let projHandle = null;                     // datoteka u koju je projekt zadnji put spremljen (Chrome/Edge)
+let saving = false;
+
+async function saveProject(asNew = false) {
+  if (saving) return;
+  saving = true;
+  try {
+    const data = { version: 1, layers: layers.map(serWithFlags) };
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    // "Spremi" piše u istu datoteku samo ako je već spremljena i naziv nije mijenjan; inače pita za ime
+    const same = projHandle && projHandle.name.replace(/\.json$/i, '') === $('projName').value.trim();
+    const t = (!asNew && same) ? { name: projHandle.name, handle: projHandle }
+                               : await chooseTarget(projectName(), 'json', 'Spremi projekt kao');
+    if (!t) return;
+    await writeTarget(t, blob);
+    projHandle = t.handle || null;
+    $('projName').value = t.name.replace(/\.json$/i, '');
+    $('infName').textContent = $('projName').value;
+    commit();
+    savedSig = hist[hi].sig;               // stanje je spremljeno
+    updateStatus();
+  } catch (e) {
+    alert('Spremanje nije uspjelo: ' + e.message);
+  } finally {
+    saving = false;
+  }
 }
 
 function newProject() {
@@ -970,6 +1092,7 @@ function newProject() {
   layers.length = 0; extra.clear(); sel = null; cropMode = false;
   hist.length = 0; hi = -1;
   $('projName').value = 'Neimenovani projekt';
+  projHandle = null;
   select(null);
   savedSig = hist[hi].sig;
   updateStatus();
@@ -990,6 +1113,7 @@ function openProject(file) {
       layers.length = 0;
       out.forEach(L => layers.push(L));
       $('projName').value = file.name.replace(/\.json$/i, '');
+      projHandle = null;
       select(null);
       savedSig = hist[hi].sig;
       updateStatus();
@@ -1221,7 +1345,8 @@ $('sideToggle').onclick = toggleSide;
 
 // gornja traka
 $('newProj').onclick = newProject;
-$('saveProj').onclick = saveProject;
+$('saveProj').onclick = () => saveProject(false);
+$('saveProjAs').onclick = () => saveProject(true);
 $('undoBtn').onclick = undo;
 $('redoBtn').onclick = redo;
 $('openProj').addEventListener('change', e => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; });
@@ -1426,10 +1551,10 @@ window.addEventListener('keydown', e => {
     if (cropMode) { cropMode = false; refreshPanels(); render(); }
     return;
   }
-  if (exportDlg.open) return;
+  if (exportDlg.open || $('nameDlg').open) return;
   if (e.ctrlKey || e.metaKey) {
     const k = e.key.toLowerCase();
-    if (k === 's') { e.preventDefault(); saveProject(); return; }
+    if (k === 's') { e.preventDefault(); saveProject(e.shiftKey); return; }
     if (typing) return;
     if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
@@ -1704,10 +1829,6 @@ async function buildPdf(pageW, pageH, img, pieceW, pieceH, places, lines = []) {
   return new Blob(chunks, { type: 'application/pdf' });
 }
 
-function saveBlob(blob, name) {
-  const a = document.createElement('a');
-  a.download = name; a.href = URL.createObjectURL(blob); a.click();
-}
 function canvasToPng(canvas, dpi) {
   return new Promise(res => canvas.toBlob(async b => res(new Blob([pngWithDpi(await b.arrayBuffer(), dpi)], { type: 'image/png' })), 'image/png'));
 }
@@ -1718,6 +1839,10 @@ async function exportPrint() {
   const dpi = +document.getElementById('dpi').value;
   const what = document.getElementById('expWhat').value;
   const fmt = document.getElementById('expFmt').value;
+  // naziv se bira prije teškog iscrtavanja (prozor "Spremi kao" mora se otvoriti odmah nakon klika)
+  const base = `${projectName()}-${what === 'piece' ? 'dizajn' : 'A4'}-${dpi}dpi`;
+  const t = await chooseTarget(base, fmt, 'Spremi za tisak kao');
+  if (!t) { info.textContent = 'Spremanje otkazano.'; return; }
   info.textContent = 'Priprema…';
   await new Promise(r => setTimeout(r, 30));     // da se prikaže poruka prije teškog posla
   const piece = renderDesign(dpi, num('margin'));
@@ -1725,10 +1850,10 @@ async function exportPrint() {
   const size = `${piece.wmm.toFixed(1)} × ${piece.hmm.toFixed(1)} mm`;
 
   if (what === 'piece') {
-    if (fmt === 'png') saveBlob(await canvasToPng(piece.canvas, dpi), `dizajn-${dpi}dpi.png`);
-    else saveBlob(await buildPdf(piece.wmm, piece.hmm, piece.canvas, piece.wmm, piece.hmm,
-      [{ x: 0, y: 0, w: piece.wmm, h: piece.hmm, rot: false }]), 'dizajn.pdf');
-    info.textContent = `Spremljeno: ${size}.`;
+    if (fmt === 'png') await writeTarget(t, await canvasToPng(piece.canvas, dpi));
+    else await writeTarget(t, await buildPdf(piece.wmm, piece.hmm, piece.canvas, piece.wmm, piece.hmm,
+      [{ x: 0, y: 0, w: piece.wmm, h: piece.hmm, rot: false }]));
+    info.textContent = `Spremljeno: ${t.name} (${size}).`;
     return;
   }
 
@@ -1753,15 +1878,22 @@ async function exportPrint() {
       x.drawImage(piece.canvas, 0, 0, piece.canvas.width, piece.canvas.height);
       x.restore();
     }
-    saveBlob(await canvasToPng(sheet, dpi), `A4-${count}x-${dpi}dpi.png`);
+    await writeTarget(t, await canvasToPng(sheet, dpi));
   } else {
-    saveBlob(await buildPdf(p.PW, p.PH, piece.canvas, piece.wmm, piece.hmm, places, lines), `A4-${count}x.pdf`);
+    await writeTarget(t, await buildPdf(p.PW, p.PH, piece.canvas, piece.wmm, piece.hmm, places, lines));
   }
-  info.textContent = `A4 ${p.PW > p.PH ? 'položeno' : 'uspravno'}: ${count} × ${size}` +
+  info.textContent = `Spremljeno: ${t.name}. A4 ${p.PW > p.PH ? 'položeno' : 'uspravno'}: ${count} × ${size}` +
     (want && want > p.n ? ` (traženo ${want}, stane ${p.n})` : ` (stane najviše ${p.n})`) + '.';
 }
-document.getElementById('savePrint').onclick = exportPrint;
-document.getElementById('saveView').onclick = () => { renderer.render(scene, camera); download(renderer.domElement, 'salica-3d.png'); };
+document.getElementById('savePrint').onclick = () => exportPrint().catch(e => {
+  document.getElementById('expInfo').textContent = 'Spremanje nije uspjelo: ' + e.message;
+});
+document.getElementById('saveView').onclick = async () => {
+  const t = await chooseTarget(`${projectName()}-3d`, 'png', 'Spremi 3D prikaz kao');
+  if (!t) return;
+  renderer.render(scene, camera);
+  renderer.domElement.toBlob(b => writeTarget(t, b).catch(e => alert('Spremanje nije uspjelo: ' + e.message)), 'image/png');
+};
 
 render();
 commit();      // početno (prazno) stanje
